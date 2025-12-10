@@ -63,7 +63,7 @@ export function LandingHero() {
                                             </div>
                                         </div>
                                         <div className="text-right">
-                                            <Badge variant={item.scores > 90 ? 'default' : 'secondary'}>{item.type}</Badge>
+                                            <Badge variant={item.score > 90 ? 'default' : 'secondary'}>{item.type}</Badge>
                                             <p className="text-xs text-slate-400 mt-1">Score: {item.score}</p>
                                         </div>
                                     </div>

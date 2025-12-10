@@ -37,7 +37,7 @@ import { useToast } from "@/hooks/use-toast"
 import { LoadingSpinner } from "@/components/ui/loading-spinner"
 
 export default function MyNetworkPage() {
-    const { toast } = useToast()
+    const toast = useToast()
 
     // Data State
     const [isLoading, setIsLoading] = useState(true)
@@ -74,11 +74,7 @@ export default function MyNetworkPage() {
             setStats(data.stats)
         } catch (error) {
             console.error(error)
-            toast({
-                title: "Error",
-                description: "No se pudieron cargar los datos de la red.",
-                variant: "destructive"
-            })
+            toast.error("No se pudieron cargar los datos de la red.", "Error")
         } finally {
             setIsLoading(false)
         }
@@ -100,13 +96,9 @@ export default function MyNetworkPage() {
 
             await fetchData()
             setIsEditingProfile(false)
-            toast({ title: "Perfil actualizado correctamente" })
+            toast.success("Perfil actualizado correctamente")
         } catch (error) {
-            toast({
-                title: "Error",
-                description: "No se pudo actualizar el perfil.",
-                variant: "destructive"
-            })
+            toast.error("No se pudo actualizar el perfil.", "Error")
         }
     }
 
@@ -128,9 +120,9 @@ export default function MyNetworkPage() {
             setIsAddingWork(false)
             setIsEditingWork(false)
             setSelectedWork(null)
-            toast({ title: isEditingWork ? "Experiencia actualizada" : "Experiencia añadida" })
+            toast.success(isEditingWork ? "Experiencia actualizada" : "Experiencia añadida")
         } catch (error) {
-            toast({ title: "Error al guardar experiencia", variant: "destructive" })
+            toast.error("Error al guardar experiencia")
         }
     }
 
@@ -140,9 +132,9 @@ export default function MyNetworkPage() {
             const res = await fetch(`/api/my-network/work-history?id=${id}`, { method: 'DELETE' })
             if (!res.ok) throw new Error()
             await fetchData()
-            toast({ title: "Experiencia eliminada" })
+            toast.success("Experiencia eliminada")
         } catch (error) {
-            toast({ title: "Error al eliminar", variant: "destructive" })
+            toast.error("Error al eliminar")
         }
     }
 
@@ -164,9 +156,9 @@ export default function MyNetworkPage() {
             setIsAddingConnection(false)
             setIsEditingConnection(false)
             setSelectedConnection(null)
-            toast({ title: isEditingConnection ? "Conexión actualizada" : "Conexión añadida" })
+            toast.success(isEditingConnection ? "Conexión actualizada" : "Conexión añadida")
         } catch (error) {
-            toast({ title: "Error al guardar conexión", variant: "destructive" })
+            toast.error("Error al guardar conexión")
         }
     }
 
@@ -176,9 +168,9 @@ export default function MyNetworkPage() {
             const res = await fetch(`/api/my-network/connections?id=${id}`, { method: 'DELETE' })
             if (!res.ok) throw new Error()
             await fetchData()
-            toast({ title: "Conexión eliminada" })
+            toast.success("Conexión eliminada")
         } catch (error) {
-            toast({ title: "Error al eliminar", variant: "destructive" })
+            toast.error("Error al eliminar")
         }
     }
 

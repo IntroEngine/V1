@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+export const dynamic = 'force-dynamic';
 import { NetworkService } from '@/services/networkService';
 import { supabaseAdmin } from '@/config/supabase';
 

@@ -29,13 +29,15 @@ export interface Target {
     created_at: string;
 }
 
+export type Company = Target;
+
 export interface Opportunity {
     id: string;
     user_id: string;
     target_id: string;
     contact_id?: string;
     type: IntroType;
-    status: 'new' | 'contacted' | 'meeting_booked' | 'closed';
+    status: 'new' | 'contacted' | 'meeting_booked' | 'closed' | 'intro_requested' | 'in_progress' | 'demo_scheduled' | 'suggested' | 'won' | 'lost';
 
     // Scores
     score_industry_fit: number;

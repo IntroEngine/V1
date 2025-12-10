@@ -156,12 +156,12 @@ export class FollowUpEngine {
     private static determineFollowUpType(opportunity: Opportunity): FollowUpType | null {
         if (['won', 'lost', 'closed'].includes(opportunity.status)) return null;
 
-        if (opportunity.type.includes('intro')) {
+        if (opportunity.type !== 'OUTBOUND') {
             if (opportunity.status === 'intro_requested') return 'bridge';
             if (opportunity.status === 'in_progress' || opportunity.status === 'demo_scheduled') return 'prospect';
         }
 
-        if (opportunity.type === 'outbound') {
+        if (opportunity.type === 'OUTBOUND') {
             if (opportunity.status === 'in_progress' || opportunity.status === 'suggested') return 'outbound';
         }
 
