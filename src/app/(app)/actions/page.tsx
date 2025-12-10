@@ -102,8 +102,8 @@ function ActionItem({ action }: { action: SuggestedAction }) {
                 {/* Icon & Status Column */}
                 <div className="flex flex-col items-center gap-2 min-w-[80px] pt-1">
                     <div className={`h-10 w-10 rounded-full flex items-center justify-center ${action.type.includes('bridge') ? 'bg-green-100 text-green-700' :
-                            action.type.includes('outbound') ? 'bg-blue-100 text-blue-700' :
-                                'bg-amber-100 text-amber-700'
+                        action.type.includes('outbound') ? 'bg-blue-100 text-blue-700' :
+                            'bg-amber-100 text-amber-700'
                         }`}>
                         <MessageSquare className="h-5 w-5" />
                     </div>
@@ -141,7 +141,7 @@ function ActionItem({ action }: { action: SuggestedAction }) {
 
                 {/* Actions Column */}
                 <div className="flex flex-row md:flex-col justify-end gap-2 min-w-[140px]">
-                    <Button variant="default" className="w-full whitespace-nowrap" size="sm" onClick={handleCopy}>
+                    <Button variant="primary" className="w-full whitespace-nowrap" size="sm" onClick={handleCopy}>
                         <Copy className="mr-2 h-4 w-4" /> Copiar Msg
                     </Button>
                     <Link href={`/opportunities/${action.id}`} className="w-full">
