@@ -136,11 +136,23 @@ export interface ConnectionFormData {
     company_domain?: string
     relationship_strength: 1 | 2 | 3 | 4 | 5
     contact_count: number
-    key_contacts: KeyContact[]
+    key_contacts?: KeyContact[] // Changed to optional, keeping KeyContact as ConnectionKeyContact is not defined
     connection_type?: 'ex-colleague' | 'client' | 'vendor' | 'investor' | 'other'
     notes?: string
     tags: string[]
     last_interaction_date?: string
+}
+
+export interface IntroOpportunity {
+    id: string
+    target_company: string
+    target_role?: string
+    target_location?: string
+    bridge_person?: string
+    bridge_company?: string
+    confidence_score: number
+    reasoning: string
+    type: 'ALUMNI' | 'INDUSTRY' | 'GEOGRAPHY' | 'MUTUAL_CONNECTION'
 }
 
 // ============================================
@@ -210,6 +222,52 @@ export interface LinkedInImportPreview {
         company: string
         contact_count: number
     }[]
+}
+
+// ============================================
+// COMPANY / PROSPECT TYPES
+// ============================================
+
+export interface Company {
+    id: string
+    name: string
+    domain: string
+    industry: string
+    contactsCount: number
+    opportunitiesCount: number
+    score: number
+    status: 'Active' | 'Inactive' | 'Prospect'
+    hubspotSynced: boolean
+    hubspotId?: string
+    description?: string
+}
+
+export interface Opportunity {
+    id: string
+    type: 'Intro' | 'Outbound'
+    targetCompany: string
+    targetCompanyId: string
+    targetContact: {
+        name: string
+        role: string
+        email: string
+    }
+    bridgeContact?: {
+        name: string
+        role: string
+        relationshipStrength: number
+    }
+    aiScore: number
+    reasoning: string
+    status: 'Suggested' | 'Requested' | 'In Progress' | 'Won' | 'Lost'
+    createdDate: string
+}
+
+export interface OpportunityStats {
+    totalOpportunities: number
+    introOpportunities: number
+    outboundOpportunities: number
+    successRate: number
 }
 
 // ============================================

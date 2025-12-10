@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { useToast } from "@/hooks/use-toast"
 import {
     Card,
     CardContent,
@@ -32,23 +33,15 @@ import {
     TrendingUp
 } from "lucide-react"
 
-// Types
-type Company = {
-    id: string
-    name: string
-    domain: string
-    industry: string
-    contactsCount: number
-    opportunitiesCount: number
-    score: number
-    status: 'Active' | 'Inactive' | 'Prospect'
-    hubspotSynced: boolean
-    hubspotId?: string
-    description?: string
-}
+
+import { Company } from "@/types/network"
 
 export default function CompaniesPage() {
+    const toast = useToast()
+
     // State
+    const [companies, setCompanies] = useState<Company[]>([])
+    const [isLoading, setIsLoading] = useState(true)
     const [searchQuery, setSearchQuery] = useState("")
     const [filterIndustry, setFilterIndustry] = useState<string>("all")
     const [filterStatus, setFilterStatus] = useState<string>("all")
@@ -57,79 +50,36 @@ export default function CompaniesPage() {
     const [isEditModalOpen, setIsEditModalOpen] = useState(false)
     const [selectedCompany, setSelectedCompany] = useState<Company | null>(null)
 
-    // TODO: Fetch real data from /api/companies
-    // const { data, isLoading } = useQuery(...)
+    // Form State
+    const [formData, setFormData] = useState<Partial<Company>>({})
 
-    // Dummy Stats Data
-    const stats = {
-        totalCompanies: 127,
-        activeOpportunities: 45,
-        hubspotSynced: 98,
-        avgScore: 76
+    // Fetch Companies
+    const fetchCompanies = async () => {
+        setIsLoading(true)
+        try {
+            const res = await fetch('/api/companies')
+            if (!res.ok) throw new Error('Failed to fetch companies')
+            const data = await res.json()
+            setCompanies(data)
+        } catch (error) {
+            console.error(error)
+            toast.error("Error al cargar empresas")
+        } finally {
+            setIsLoading(false)
+        }
     }
 
-    // Dummy Companies Data
-    const companies: Company[] = [
-        {
-            id: '1',
-            name: 'TechCorp SA',
-            domain: 'techcorp.com',
-            industry: 'Technology',
-            contactsCount: 12,
-            opportunitiesCount: 5,
-            score: 92,
-            status: 'Active',
-            hubspotSynced: true,
-            hubspotId: 'hs-12345',
-            description: 'Leading technology solutions provider'
-        },
-        {
-            id: '2',
-            name: 'Global Solutions',
-            domain: 'globalsolutions.io',
-            industry: 'Consulting',
-            contactsCount: 8,
-            opportunitiesCount: 3,
-            score: 85,
-            status: 'Active',
-            hubspotSynced: true,
-            hubspotId: 'hs-67890'
-        },
-        {
-            id: '3',
-            name: 'InnovateX',
-            domain: 'innovatex.com',
-            industry: 'SaaS',
-            contactsCount: 15,
-            opportunitiesCount: 7,
-            score: 88,
-            status: 'Active',
-            hubspotSynced: false
-        },
-        {
-            id: '4',
-            name: 'Alpha Logistics',
-            domain: 'alphalog.com',
-            industry: 'Logistics',
-            contactsCount: 5,
-            opportunitiesCount: 2,
-            score: 72,
-            status: 'Prospect',
-            hubspotSynced: true,
-            hubspotId: 'hs-11223'
-        },
-        {
-            id: '5',
-            name: 'Beta Systems',
-            domain: 'betasys.net',
-            industry: 'Technology',
-            contactsCount: 3,
-            opportunitiesCount: 1,
-            score: 65,
-            status: 'Inactive',
-            hubspotSynced: false
-        },
-    ]
+    useEffect(() => {
+        fetchCompanies()
+    }, [])
+
+    // Derived Stats
+    const stats = {
+        totalCompanies: companies.length,
+        activeOpportunities: companies.reduce((acc, c) => acc + (c.opportunitiesCount || 0), 0),
+        hubspotSynced: companies.filter(c => c.hubspotSynced).length,
+        avgScore: companies.length > 0 ? Math.round(companies.reduce((acc, c) => acc + (c.score || 0), 0) / companies.length) : 0
+    }
 
     // Filter companies
     const filteredCompanies = companies.filter(company => {
@@ -146,50 +96,110 @@ export default function CompaniesPage() {
 
     // Handlers
     const handleCreateCompany = () => {
+        setFormData({})
         setIsCreateModalOpen(true)
     }
 
     const handleEditCompany = (company: Company) => {
         setSelectedCompany(company)
+        setFormData({
+            name: company.name,
+            domain: company.domain,
+            industry: company.industry,
+            status: company.status,
+            description: company.description,
+            score: company.score
+        })
         setIsEditModalOpen(true)
     }
 
-    const handleDeleteCompany = (companyId: string) => {
-        // TODO: Implement delete with confirmation
-        console.log('Delete company:', companyId)
+    const handleDeleteCompany = async (companyId: string) => {
+        if (!confirm("¿Estás seguro de eliminar esta empresa?")) return
+
+        try {
+            const res = await fetch(`/api/companies/${companyId}`, { method: 'DELETE' })
+            if (!res.ok) throw new Error('Failed to delete')
+
+            toast.success("Empresa eliminada")
+            // MOCK MODE: Manually update local state
+            setCompanies(prev => prev.filter(c => c.id !== companyId))
+            // fetchCompanies() <--- Disabled for Mock Mode
+        } catch (error) {
+            toast.error("No se pudo eliminar la empresa")
+        }
+    }
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault()
+        try {
+            const url = isCreateModalOpen ? '/api/companies' : `/api/companies/${selectedCompany?.id}`
+            const method = isCreateModalOpen ? 'POST' : 'PATCH'
+
+            const res = await fetch(url, {
+                method,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(formData)
+            })
+
+            if (!res.ok) throw new Error('Failed to save')
+
+            const savedData = await res.json() // Mock API returns the created object or success
+
+            toast.success(isCreateModalOpen ? "Empresa creada" : "Empresa actualizada")
+
+            // MOCK MODE: Manually update local state
+            if (isCreateModalOpen) {
+                // If the API returns the created object (it does for create), use it. 
+                // Otherwise construct it.
+                const newCompany = {
+                    ...savedData,
+                    // Ensure defaults if API didn't return full object
+                    contactsCount: 0,
+                    opportunitiesCount: 0,
+                    hubspotSynced: false
+                }
+                setCompanies(prev => [...prev, newCompany])
+            } else {
+                setCompanies(prev => prev.map(c =>
+                    c.id === selectedCompany?.id
+                        ? { ...c, ...formData } as Company
+                        : c
+                ))
+            }
+
+            setIsCreateModalOpen(false)
+            setIsEditModalOpen(false)
+            // fetchCompanies() <--- Disabled for Mock Mode
+        } catch (error) {
+            console.error(error)
+            toast.error("Error al guardar cambios")
+        }
     }
 
     const handleSyncHubspot = () => {
-        // TODO: Trigger HubSpot sync
-        console.log('Syncing with HubSpot...')
+        toast.info("Sincronización con HubSpot iniciada (Simulación)")
+        setTimeout(() => toast.success("Sincronización completada"), 2000)
     }
 
     const getStatusBadgeVariant = (status: Company['status']) => {
         switch (status) {
-            case 'Active':
-                return 'default'
-            case 'Inactive':
-                return 'secondary'
-            case 'Prospect':
-                return 'outline'
-            default:
-                return 'secondary'
+            case 'Active': return 'default'
+            case 'Inactive': return 'secondary'
+            case 'Prospect': return 'outline'
+            default: return 'secondary'
         }
     }
 
     const getStatusIcon = (status: Company['status']) => {
         switch (status) {
-            case 'Active':
-                return <CheckCircle2 className="h-3 w-3" />
-            case 'Inactive':
-                return <XCircle className="h-3 w-3" />
-            case 'Prospect':
-                return <Clock className="h-3 w-3" />
+            case 'Active': return <CheckCircle2 className="h-3 w-3" />
+            case 'Inactive': return <XCircle className="h-3 w-3" />
+            case 'Prospect': return <Clock className="h-3 w-3" />
         }
     }
 
     return (
-        <div className="space-y-8">
+        <div className="space-y-8 animate-in fade-in slide-in-from-bottom duration-500">
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
@@ -219,7 +229,7 @@ export default function CompaniesPage() {
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold text-gray-900">{stats.totalCompanies}</div>
-                        <p className="text-xs text-gray-600 mt-1">+12 este mes</p>
+                        <p className="text-xs text-gray-600 mt-1">En cartera</p>
                     </CardContent>
                 </Card>
 
@@ -241,7 +251,7 @@ export default function CompaniesPage() {
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold text-gray-900">{stats.hubspotSynced}</div>
-                        <p className="text-xs text-gray-600 mt-1">{Math.round((stats.hubspotSynced / stats.totalCompanies) * 100)}% del total</p>
+                        <p className="text-xs text-gray-600 mt-1">{stats.totalCompanies > 0 ? Math.round((stats.hubspotSynced / stats.totalCompanies) * 100) : 0}% del total</p>
                     </CardContent>
                 </Card>
 
@@ -252,7 +262,7 @@ export default function CompaniesPage() {
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold text-gray-900">{stats.avgScore}</div>
-                        <p className="text-xs text-gray-600 mt-1">+3 puntos vs mes anterior</p>
+                        <p className="text-xs text-gray-600 mt-1">ICP Match</p>
                     </CardContent>
                 </Card>
             </div>
@@ -333,10 +343,16 @@ export default function CompaniesPage() {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {filteredCompanies.length === 0 ? (
+                            {isLoading ? (
                                 <TableRow>
                                     <TableCell colSpan={9} className="text-center py-8 text-gray-500">
-                                        No se encontraron empresas con los filtros aplicados.
+                                        Cargando empresas...
+                                    </TableCell>
+                                </TableRow>
+                            ) : filteredCompanies.length === 0 ? (
+                                <TableRow>
+                                    <TableCell colSpan={9} className="text-center py-8 text-gray-500">
+                                        No se encontraron empresas.
                                     </TableCell>
                                 </TableRow>
                             ) : (
@@ -351,19 +367,21 @@ export default function CompaniesPage() {
                                             </div>
                                         </TableCell>
                                         <TableCell>
-                                            <a
-                                                href={`https://${company.domain}`}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="text-[#FF5A00] hover:underline flex items-center gap-1"
-                                            >
-                                                {company.domain}
-                                                <ExternalLink className="h-3 w-3" />
-                                            </a>
+                                            {company.domain && (
+                                                <a
+                                                    href={`https://${company.domain}`}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="text-[#FF5A00] hover:underline flex items-center gap-1"
+                                                >
+                                                    {company.domain}
+                                                    <ExternalLink className="h-3 w-3" />
+                                                </a>
+                                            )}
                                         </TableCell>
                                         <TableCell>
                                             <Badge variant="outline" className="font-normal border-gray-300">
-                                                {company.industry}
+                                                {company.industry || 'N/A'}
                                             </Badge>
                                         </TableCell>
                                         <TableCell className="text-center text-gray-900 font-medium">
@@ -444,23 +462,15 @@ export default function CompaniesPage() {
                             <h3 className="text-lg font-bold mb-4 text-gray-900">
                                 {isCreateModalOpen ? 'Añadir nueva empresa' : 'Editar empresa'}
                             </h3>
-                            <form
-                                onSubmit={(e) => {
-                                    e.preventDefault()
-                                    console.log("Saving company...") // TODO: Connect to API
-                                    setIsCreateModalOpen(false)
-                                    setIsEditModalOpen(false)
-                                    setSelectedCompany(null)
-                                }}
-                                className="space-y-4"
-                            >
+                            <form onSubmit={handleSubmit} className="space-y-4">
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="space-y-2">
                                         <label className="text-sm font-medium text-gray-900">Nombre de la empresa *</label>
                                         <Input
                                             required
                                             placeholder="Ej: TechCorp SA"
-                                            defaultValue={selectedCompany?.name}
+                                            value={formData.name || ''}
+                                            onChange={e => setFormData({ ...formData, name: e.target.value })}
                                         />
                                     </div>
                                     <div className="space-y-2">
@@ -468,7 +478,8 @@ export default function CompaniesPage() {
                                         <Input
                                             required
                                             placeholder="techcorp.com"
-                                            defaultValue={selectedCompany?.domain}
+                                            value={formData.domain || ''}
+                                            onChange={e => setFormData({ ...formData, domain: e.target.value })}
                                         />
                                     </div>
                                 </div>
@@ -477,9 +488,11 @@ export default function CompaniesPage() {
                                     <div className="space-y-2">
                                         <label className="text-sm font-medium text-gray-900">Industria</label>
                                         <select
-                                            defaultValue={selectedCompany?.industry}
+                                            value={formData.industry || ''}
+                                            onChange={e => setFormData({ ...formData, industry: e.target.value })}
                                             className="flex h-10 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#FF5A00] focus:ring-offset-2"
                                         >
+                                            <option value="">Seleccionar...</option>
                                             <option value="Technology">Technology</option>
                                             <option value="SaaS">SaaS</option>
                                             <option value="Consulting">Consulting</option>
@@ -491,7 +504,8 @@ export default function CompaniesPage() {
                                     <div className="space-y-2">
                                         <label className="text-sm font-medium text-gray-900">Estado</label>
                                         <select
-                                            defaultValue={selectedCompany?.status}
+                                            value={formData.status || 'new'}
+                                            onChange={e => setFormData({ ...formData, status: e.target.value as any })}
                                             className="flex h-10 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#FF5A00] focus:ring-offset-2"
                                         >
                                             <option value="Active">Active</option>
@@ -505,7 +519,8 @@ export default function CompaniesPage() {
                                     <label className="text-sm font-medium text-gray-900">Descripción</label>
                                     <textarea
                                         placeholder="Breve descripción de la empresa..."
-                                        defaultValue={selectedCompany?.description}
+                                        value={formData.description || ''}
+                                        onChange={e => setFormData({ ...formData, description: e.target.value })}
                                         rows={3}
                                         className="flex w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#FF5A00] focus:ring-offset-2"
                                     />

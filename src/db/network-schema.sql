@@ -371,3 +371,102 @@ VALUES (
   ARRAY['Product', 'Sales', 'Strategy']
 );
 */
+
+-- ============================================
+-- TABLE: icp_definitions
+-- ============================================
+CREATE TABLE icp_definitions (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  
+  -- Core Definition
+  target_industries TEXT[] DEFAULT '{}',
+  company_size_min INTEGER,
+  company_size_max INTEGER,
+  target_technologies TEXT[] DEFAULT '{}',
+  digital_maturity TEXT CHECK (digital_maturity IN ('Low', 'Medium', 'High', 'Any')),
+  target_locations TEXT[] DEFAULT '{}',
+  
+  -- Roles & Personas
+  key_roles TEXT[] DEFAULT '{}', -- e.g. ["CTO", "VP Engineering"]
+  
+  -- Strategy
+  pain_points TEXT,
+  opportunity_triggers TEXT,
+  anti_icp_criteria TEXT,
+  
+  -- Metadata
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  
+  UNIQUE(user_id) -- Enforce 1 ICP per user for now
+);
+
+-- Indexes
+CREATE INDEX idx_icp_definitions_user_id ON icp_definitions(user_id);
+
+-- RLS
+ALTER TABLE icp_definitions ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view own ICP"
+  ON icp_definitions FOR SELECT
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert own ICP"
+  ON icp_definitions FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own ICP"
+  ON icp_definitions FOR UPDATE
+  USING (auth.uid() = user_id);
+
+-- Trigger
+CREATE TRIGGER update_icp_definitions_updated_at
+  BEFORE UPDATE ON icp_definitions
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at_column();
+
+-- ============================================
+-- TABLE: prospects (Layer 3: Outbound/AI)
+-- ============================================
+CREATE TABLE prospects (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  
+  company_name TEXT NOT NULL,
+  domain TEXT,
+  
+  icp_score INTEGER,
+  status TEXT DEFAULT 'new' CHECK (status IN ('new', 'approved', 'rejected')),
+  
+  -- Extended Company Profile
+  industry TEXT,
+  description TEXT,
+  logo_url TEXT,
+  website_url TEXT,
+  
+  -- HubSpot Sync
+  hubspot_id TEXT,
+  hubspot_synced_at TIMESTAMPTZ,
+  
+  topics_detected TEXT[] DEFAULT '{}',
+  source TEXT DEFAULT 'ai_expansion',
+  
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  
+  UNIQUE(user_id, domain)
+);
+
+CREATE INDEX idx_prospects_user_id ON prospects(user_id);
+CREATE INDEX idx_prospects_status ON prospects(status);
+
+ALTER TABLE prospects ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view own prospects" ON prospects FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can insert own prospects" ON prospects FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can update own prospects" ON prospects FOR UPDATE USING (auth.uid() = user_id);
+
+CREATE TRIGGER update_prospects_updated_at BEFORE UPDATE ON prospects FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+

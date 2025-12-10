@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { LayoutDashboard, Building2, Users, Lightbulb, CheckSquare, BarChart3, UserCircle, Settings, Network } from "lucide-react"
+import { LayoutDashboard, Building2, Users, Lightbulb, CheckSquare, BarChart3, UserCircle, Settings, Network, Target } from "lucide-react"
 
 import { cn } from "@/utils/cn"
 
@@ -13,6 +13,7 @@ function classNames(...classes: (string | undefined | null | false)[]) {
 
 const navItems = [
     { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+    { name: "Objetivo ICP", href: "/icp-target", icon: Target },
     { name: "Mi Red", href: "/my-network", icon: Network },
     { name: "Empresas", href: "/companies", icon: Building2 },
     { name: "Contactos", href: "/contacts", icon: Users },

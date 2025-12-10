@@ -28,8 +28,11 @@ import type {
     NetworkStats,
     ProfileFormData,
     WorkHistoryFormData,
-    ConnectionFormData
+    ConnectionFormData,
+    IntroOpportunity
 } from "@/types/network"
+import { LinkedInImportModal } from "@/components/ui/linkedin-import-modal"
+import { IntroOpportunitiesList } from "@/components/network/intro-opportunities-list"
 import { EditProfileModal } from "@/components/ui/edit-profile-modal"
 import { WorkHistoryModal } from "@/components/ui/work-history-modal"
 import { ConnectionModal } from "@/components/ui/connection-modal"
@@ -44,6 +47,7 @@ export default function MyNetworkPage() {
     const [profile, setProfile] = useState<UserProfile | null>(null)
     const [workHistory, setWorkHistory] = useState<WorkHistory[]>([])
     const [connections, setConnections] = useState<UserConnection[]>([])
+    const [opportunities, setOpportunities] = useState<IntroOpportunity[]>([])
     const [stats, setStats] = useState<NetworkStats>({
         total_companies_worked: 0,
         total_connections: 0,
@@ -71,6 +75,7 @@ export default function MyNetworkPage() {
             setProfile(data.profile)
             setWorkHistory(data.workHistory)
             setConnections(data.connections)
+            setOpportunities(data.opportunities || [])
             setStats(data.stats)
         } catch (error) {
             console.error(error)
@@ -174,6 +179,33 @@ export default function MyNetworkPage() {
         }
     }
 
+    const handleImportLinkedIn = async (data: any) => {
+        try {
+            const contacts = Array.isArray(data) ? data : [] // Ensure array
+            if (contacts.length === 0) {
+                toast.error("Format invalid or empty")
+                return
+            }
+
+            const res = await fetch('/api/my-network/import', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ contacts })
+            })
+
+            if (!res.ok) throw new Error("Import failed")
+
+            const result = await res.json()
+
+            toast.success(`Importación completada: ${result.stats.added} contactos procesados.`)
+            setIsImportingLinkedIn(false)
+            fetchData()
+        } catch (error) {
+            console.error(error)
+            toast.error("Error al importar datos de LinkedIn")
+        }
+    }
+
     const getRelationshipDots = (strength: number) => {
         return Array.from({ length: 5 }, (_, i) => (
             <div
@@ -255,6 +287,17 @@ export default function MyNetworkPage() {
                         <p className="text-xs text-gray-600 mt-1">Oportunidades detectadas</p>
                     </CardContent>
                 </Card>
+            </div>
+
+            {/* Intro Opportunities Section */}
+            <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                    <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                        <TrendingUp className="h-5 w-5 text-green-600" />
+                        Oportunidades de Intro Detectadas
+                    </h3>
+                </div>
+                <IntroOpportunitiesList opportunities={opportunities} />
             </div>
 
             {/* Profile Completeness */}
@@ -526,6 +569,13 @@ export default function MyNetworkPage() {
                         setIsEditingConnection(false)
                         setSelectedConnection(null)
                     }}
+                />
+            )}
+
+            {isImportingLinkedIn && (
+                <LinkedInImportModal
+                    onImport={handleImportLinkedIn}
+                    onClose={() => setIsImportingLinkedIn(false)}
                 />
             )}
         </div>

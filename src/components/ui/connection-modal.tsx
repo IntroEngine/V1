@@ -60,11 +60,11 @@ export function ConnectionModal({ connection, onSave, onClose }: ConnectionModal
     }
 
     const handleAddContact = () => {
-        if (newContact.name.trim() && formData.key_contacts.length < 20) {
+        if (newContact.name.trim() && (formData.key_contacts || []).length < 20) {
             setFormData({
                 ...formData,
-                key_contacts: [...formData.key_contacts, newContact],
-                contact_count: formData.key_contacts.length + 1
+                key_contacts: [...(formData.key_contacts || []), newContact],
+                contact_count: (formData.key_contacts || []).length + 1
             })
             setNewContact({ name: "", title: "", relationship: "" })
             setIsAddingContact(false)
@@ -74,7 +74,7 @@ export function ConnectionModal({ connection, onSave, onClose }: ConnectionModal
     const handleRemoveContact = (index: number) => {
         setFormData({
             ...formData,
-            key_contacts: formData.key_contacts.filter((_, i) => i !== index),
+            key_contacts: (formData.key_contacts || []).filter((_, i) => i !== index),
             contact_count: Math.max(0, formData.contact_count - 1)
         })
     }
@@ -227,7 +227,7 @@ export function ConnectionModal({ connection, onSave, onClose }: ConnectionModal
                                     type="button"
                                     size="sm"
                                     onClick={() => setIsAddingContact(true)}
-                                    disabled={formData.key_contacts.length >= 20}
+                                    disabled={(formData.key_contacts || []).length >= 20}
                                 >
                                     <Plus className="h-4 w-4 mr-1" />
                                     Añadir
@@ -271,7 +271,7 @@ export function ConnectionModal({ connection, onSave, onClose }: ConnectionModal
                             )}
 
                             <ul className="space-y-2">
-                                {formData.key_contacts.map((contact, i) => (
+                                {(formData.key_contacts || []).map((contact, i) => (
                                     <li key={i} className="flex items-start justify-between p-3 bg-gray-50 rounded">
                                         <div>
                                             <p className="font-medium text-gray-900">{contact.name}</p>

@@ -1,6 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import { Opportunity, OpportunityStats } from "@/types/network"
+import { useState, useEffect } from "react"
+import { useToast } from "@/hooks/use-toast"
 import {
     Card,
     CardContent,
@@ -26,36 +28,23 @@ import {
     MessageSquare,
     Eye,
     TrendingUp,
-    CheckCircle2,
-    Zap,
     Users,
-    ArrowRight
+    Zap
 } from "lucide-react"
 
-// Types
-type Opportunity = {
-    id: string
-    type: 'Intro' | 'Outbound'
-    targetCompany: string
-    targetCompanyId: string
-    targetContact: {
-        name: string
-        role: string
-        email: string
-    }
-    bridgeContact?: {
-        name: string
-        role: string
-        relationshipStrength: number
-    }
-    aiScore: number
-    reasoning: string
-    status: 'Suggested' | 'Requested' | 'In Progress' | 'Won' | 'Lost'
-    createdDate: string
-}
-
 export default function OpportunitiesPage() {
+    const toast = useToast()
+
     // State
+    const [opportunities, setOpportunities] = useState<Opportunity[]>([])
+    const [stats, setStats] = useState<OpportunityStats>({
+        totalOpportunities: 0,
+        introOpportunities: 0,
+        outboundOpportunities: 0,
+        successRate: 0
+    })
+    const [isLoading, setIsLoading] = useState(true)
+
     const [searchQuery, setSearchQuery] = useState("")
     const [filterType, setFilterType] = useState<string>("all")
     const [filterStatus, setFilterStatus] = useState<string>("all")
@@ -63,110 +52,26 @@ export default function OpportunitiesPage() {
     const [selectedOpportunity, setSelectedOpportunity] = useState<Opportunity | null>(null)
     const [isDetailModalOpen, setIsDetailModalOpen] = useState(false)
 
-    // TODO: Fetch real data from /api/opportunities
-    // const { data, isLoading } = useQuery(...)
-
-    // Dummy Stats Data
-    const stats = {
-        totalOpportunities: 47,
-        introOpportunities: 28,
-        outboundOpportunities: 19,
-        successRate: 34
+    // Fetch Data
+    const fetchOpportunities = async () => {
+        setIsLoading(true)
+        try {
+            const res = await fetch('/api/opportunities')
+            if (!res.ok) throw new Error('Failed to fetch')
+            const data = await res.json()
+            setOpportunities(data.opportunities)
+            setStats(data.stats)
+        } catch (error) {
+            console.error(error)
+            toast.error("Error al cargar oportunidades")
+        } finally {
+            setIsLoading(false)
+        }
     }
 
-    // Dummy Opportunities Data
-    const opportunities: Opportunity[] = [
-        {
-            id: '1',
-            type: 'Intro',
-            targetCompany: 'TechCorp SA',
-            targetCompanyId: '1',
-            targetContact: {
-                name: 'Juan Pérez',
-                role: 'Chief Technology Officer',
-                email: 'juan.perez@techcorp.com'
-            },
-            bridgeContact: {
-                name: 'Ana García',
-                role: 'VP of Sales at Global Solutions',
-                relationshipStrength: 92
-            },
-            aiScore: 95,
-            reasoning: 'Ana has a strong relationship with Juan from their time at Tech Summit 2024. Both work in enterprise tech sales.',
-            status: 'Suggested',
-            createdDate: '2024-12-08'
-        },
-        {
-            id: '2',
-            type: 'Outbound',
-            targetCompany: 'InnovateX',
-            targetCompanyId: '3',
-            targetContact: {
-                name: 'Carlos Ruiz',
-                role: 'Engineering Director',
-                email: 'carlos.ruiz@innovatex.com'
-            },
-            aiScore: 82,
-            reasoning: 'InnovateX recently announced Series B funding. Carlos is actively hiring for engineering roles, indicating growth phase.',
-            status: 'In Progress',
-            createdDate: '2024-12-05'
-        },
-        {
-            id: '3',
-            type: 'Intro',
-            targetCompany: 'Alpha Logistics',
-            targetCompanyId: '4',
-            targetContact: {
-                name: 'María López',
-                role: 'Product Manager',
-                email: 'maria.lopez@alphalog.com'
-            },
-            bridgeContact: {
-                name: 'David Martínez',
-                role: 'Senior Developer at Beta Systems',
-                relationshipStrength: 78
-            },
-            aiScore: 88,
-            reasoning: 'David and María worked together at a previous company. María is now leading product initiatives at Alpha Logistics.',
-            status: 'Requested',
-            createdDate: '2024-12-07'
-        },
-        {
-            id: '4',
-            type: 'Outbound',
-            targetCompany: 'Beta Systems',
-            targetCompanyId: '5',
-            targetContact: {
-                name: 'Laura Fernández',
-                role: 'Head of Marketing',
-                email: 'laura.fernandez@betasys.net'
-            },
-            aiScore: 71,
-            reasoning: 'Beta Systems is expanding into new markets. Laura recently posted about looking for partnership opportunities.',
-            status: 'Suggested',
-            createdDate: '2024-12-06'
-        },
-        {
-            id: '5',
-            type: 'Intro',
-            targetCompany: 'Global Solutions',
-            targetCompanyId: '2',
-            targetContact: {
-                name: 'Pedro Sánchez',
-                role: 'CEO',
-                email: 'pedro.sanchez@globalsolutions.io'
-            },
-            bridgeContact: {
-                name: 'Juan Pérez',
-                role: 'CTO at TechCorp SA',
-                relationshipStrength: 85
-            },
-            aiScore: 92,
-            reasoning: 'Juan and Pedro are both in the enterprise software space and have mutual connections from industry events.',
-            status: 'Won',
-            createdDate: '2024-11-28'
-        },
-    ]
+    useEffect(() => {
+        fetchOpportunities()
+    }, [])
 
     // Filter opportunities
     const filteredOpportunities = opportunities.filter(opp => {
@@ -189,18 +94,20 @@ export default function OpportunitiesPage() {
     }
 
     const handleRequestIntro = (opportunityId: string) => {
-        // TODO: Implement intro request
-        console.log('Request intro for:', opportunityId)
+        toast.success("Solicitud de intro enviada")
+        // MOCK UPDATE: Change status to Requested
+        setOpportunities(prev => prev.map(o => o.id === opportunityId ? { ...o, status: 'Requested' } : o))
     }
 
     const handleGenerateOutbound = (opportunityId: string) => {
-        // TODO: Implement outbound generation
-        console.log('Generate outbound for:', opportunityId)
+        toast.success("Mensajes generados")
+        // MOCK UPDATE: Change status to In Progress
+        setOpportunities(prev => prev.map(o => o.id === opportunityId ? { ...o, status: 'In Progress' } : o))
     }
 
     const handleRefreshAI = () => {
-        // TODO: Trigger AI analysis refresh
-        console.log('Refreshing AI analysis...')
+        toast.info("Re-analizando red...")
+        setTimeout(() => toast.success("Análisis completado"), 2000)
     }
 
     const getScoreColor = (score: number) => {
@@ -223,23 +130,17 @@ export default function OpportunitiesPage() {
 
     const getStatusBadgeVariant = (status: Opportunity['status']): "default" | "secondary" | "success" | "warning" | "destructive" | "outline" => {
         switch (status) {
-            case 'Suggested':
-                return 'secondary'
-            case 'Requested':
-                return 'outline'
-            case 'In Progress':
-                return 'default'
-            case 'Won':
-                return 'success'
-            case 'Lost':
-                return 'destructive'
-            default:
-                return 'secondary'
+            case 'Suggested': return 'secondary'
+            case 'Requested': return 'outline'
+            case 'In Progress': return 'default'
+            case 'Won': return 'success'
+            case 'Lost': return 'destructive'
+            default: return 'secondary'
         }
     }
 
     return (
-        <div className="space-y-8">
+        <div className="space-y-8 animate-in fade-in slide-in-from-bottom duration-500">
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
@@ -379,7 +280,13 @@ export default function OpportunitiesPage() {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {filteredOpportunities.length === 0 ? (
+                            {isLoading ? (
+                                <TableRow>
+                                    <TableCell colSpan={8} className="text-center py-8 text-gray-500">
+                                        Cargando oportunidades...
+                                    </TableCell>
+                                </TableRow>
+                            ) : filteredOpportunities.length === 0 ? (
                                 <TableRow>
                                     <TableCell colSpan={8} className="text-center py-8 text-gray-500">
                                         No se encontraron oportunidades con los filtros aplicados.

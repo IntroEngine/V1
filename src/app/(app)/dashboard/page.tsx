@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import {
     Card,
     CardContent,
@@ -25,6 +25,13 @@ import { EmptyState } from "@/components/ui/empty-state"
 import { ErrorDisplay } from "@/components/ui/error-display"
 
 // Types for dummy data
+type DashboardStats = {
+    introsSuggested: number;
+    introsRequested: number;
+    outboundSuggested: number;
+    wonDeals: number;
+}
+
 type Opportunity = {
     id: string
     company: string
@@ -47,43 +54,49 @@ export default function DashboardPage() {
     const [isLoading, setIsLoading] = useState(false)
     const [hasError, setHasError] = useState(false)
 
-    // Dummy KPI Data
-    const stats = {
-        introsSuggested: 12,
-        introsRequested: 5,
-        outboundSuggested: 34,
-        wonDeals: 2
+    // State for real data
+    const [stats, setStats] = useState<DashboardStats>({
+        introsSuggested: 0,
+        introsRequested: 0,
+        outboundSuggested: 0,
+        wonDeals: 0
+    })
+    const [recentOpps, setRecentOpps] = useState<Opportunity[]>([])
+    const [actions, setActions] = useState<Action[]>([])
+
+    // Fetch Data
+    const fetchDashboardData = async () => {
+        setIsLoading(true)
+        setHasError(false)
+        try {
+            const res = await fetch('/api/dashboard/stats')
+            if (!res.ok) throw new Error("Failed to fetch dashboard stats")
+            const data = await res.json()
+
+            setStats(data.stats)
+            setRecentOpps(data.opportunities)
+            setActions(data.actions)
+        } catch (error) {
+            console.error(error)
+            setHasError(true)
+            toast.error("Error al cargar datos del dashboard")
+        } finally {
+            setIsLoading(false)
+        }
     }
 
-    // Dummy Opportunities Data
-    const recentOpps: Opportunity[] = [
-        { id: '1', company: 'TechCorp SA', type: 'Intro', score: 98, status: 'Suggested' },
-        { id: '2', company: 'Global Solutions', type: 'Intro', score: 92, status: 'Requested' },
-        { id: '3', company: 'InnovateX', type: 'Outbound', score: 85, status: 'In Progress' },
-        { id: '4', company: 'Alpha Logistics', type: 'Intro', score: 78, status: 'Suggested' },
-        { id: '5', company: 'Beta Systems', type: 'Outbound', score: 70, status: 'Suggested' },
-    ]
+    // Load on mount
+    useEffect(() => {
+        fetchDashboardData()
+    }, [])
 
-    // Dummy Actions Data
-    const actions: Action[] = [
-        { id: 'a1', title: 'Revisar Intros Nuevas', description: 'Tienes 3 nuevas intros con score > 90 esperando revisión.', priority: 'High' },
-        { id: 'a2', title: 'Aprobar Outbound', description: '5 mensajes de outbound generados automáticamente para el sector Retail.', priority: 'Medium' },
-        { id: 'a3', title: 'Actualizar HubSpot', description: 'Hay 2 oportunidades ganadas que necesitan sincronización final.', priority: 'High' },
-    ]
-
-    // Demo handlers for toast notifications
     const handleRefreshData = () => {
-        setIsLoading(true)
-        toast.info("Actualizando datos...")
-
-        setTimeout(() => {
-            setIsLoading(false)
-            toast.success("Datos actualizados correctamente")
-        }, 2000)
+        fetchDashboardData()
+        toast.success("Datos actualizados")
     }
 
     const handleExecuteAction = (actionTitle: string) => {
-        toast.success(`Acción ejecutada: ${actionTitle}`)
+        toast.success(`Acción ejecutada: ${actionTitle} `)
     }
 
     const handleViewReports = () => {
@@ -91,26 +104,22 @@ export default function DashboardPage() {
     }
 
     const handleRetry = () => {
-        setHasError(false)
-        setIsLoading(true)
-        setTimeout(() => {
-            setIsLoading(false)
-        }, 1500)
+        fetchDashboardData()
     }
 
-    // Demo: Show error state
+    // Error State
     if (hasError) {
         return (
             <ErrorDisplay
                 message="No se pudieron cargar los datos del dashboard"
-                details="Error: Failed to fetch dashboard stats from /api/dashboard/stats"
+                details="Error de conexión con el servidor. Por favor intenta de nuevo."
                 onRetry={handleRetry}
             />
         )
     }
 
-    // Demo: Show loading state
-    if (isLoading) {
+    // Loading State
+    if (isLoading && stats.introsSuggested === 0) { // Only show skeleton on initial load if empty
         return (
             <div className="space-y-8">
                 <div className="flex items-center justify-between">
@@ -144,10 +153,6 @@ export default function DashboardPage() {
                     </Button>
                     <Button size="sm" onClick={handleViewReports}>
                         Ver reportes
-                    </Button>
-                    {/* Demo button to trigger error */}
-                    <Button variant="outline" size="sm" onClick={() => setHasError(true)}>
-                        Simular Error
                     </Button>
                 </div>
             </div>
@@ -215,7 +220,7 @@ export default function DashboardPage() {
                                 icon={Lightbulb}
                                 title="No hay oportunidades"
                                 description="La IA generará oportunidades a medida que analice tu red"
-                                action={<Button size="sm">Actualizar Análisis</Button>}
+                                action={<Button size="sm" onClick={handleRefreshData}>Actualizar Análisis</Button>}
                             />
                         ) : (
                             <Table>
@@ -266,7 +271,9 @@ export default function DashboardPage() {
                     </CardHeader>
                     <CardContent>
                         <div className="space-y-4">
-                            {actions.map((action) => (
+                            {actions.length === 0 ? (
+                                <p className="text-sm text-gray-500 text-center py-4">No hay acciones pendientes.</p>
+                            ) : actions.map((action) => (
                                 <div key={action.id} className="flex flex-col gap-3 rounded-xl border border-gray-200 bg-white/60 p-4 hover:bg-white hover:scale-[1.01] transition-all duration-300">
                                     <div className="flex items-center justify-between">
                                         <span className="font-semibold text-sm text-gray-900">{action.title}</span>
@@ -286,11 +293,13 @@ export default function DashboardPage() {
                                 </div>
                             ))}
 
-                            <div className="pt-2">
-                                <Button variant="ghost" className="w-full text-xs text-gray-600">
-                                    Ver todas las sugerencias
-                                </Button>
-                            </div>
+                            {actions.length > 0 && (
+                                <div className="pt-2">
+                                    <Button variant="ghost" className="w-full text-xs text-gray-600">
+                                        Ver todas las sugerencias
+                                    </Button>
+                                </div>
+                            )}
                         </div>
                     </CardContent>
                 </Card>

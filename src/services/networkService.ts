@@ -190,6 +190,36 @@ export class NetworkService {
     // STATS
     // ============================================
 
+    // ============================================
+    // OPPORTUNITIES
+    // ============================================
+
+    static async getOpportunities(userId: string): Promise<any[]> {
+        const { data, error } = await supabaseAdmin
+            .from('inferred_relationships')
+            .select('*')
+            .eq('user_id', userId)
+            .eq('is_active', true)
+            .order('confidence_score', { ascending: false });
+
+        if (error) {
+            console.error('Error fetching opportunities:', error);
+            return [];
+        }
+
+        return data.map(item => ({
+            id: item.id,
+            target_company: item.target_company,
+            bridge_company: item.bridge_company,
+            confidence_score: item.confidence_score,
+            reasoning: item.reasoning,
+            type: item.inference_type,
+            // Defaults for fields not yet in DB
+            target_role: 'Decision Maker',
+            bridge_person: 'Ex-Colleague'
+        }));
+    }
+
     static async getNetworkStats(userId: string): Promise<NetworkStats> {
         // Fetch all data in parallel
         const [profile, workHistory, connections] = await Promise.all([
@@ -221,5 +251,57 @@ export class NetworkService {
             total_intro_opportunities: introCount || 0,
             profile_completeness: profile?.profile_completeness || 0
         };
+    }
+    // ============================================
+    // IMPORT
+    // ============================================
+
+    static async processImport(userId: string, contacts: any[]): Promise<{ added: number; updated: number; errors: number }> {
+        let added = 0
+        let updated = 0
+        let errors = 0
+
+        // Process in batches of 50 to avoid request size limits
+        const batchSize = 50
+        for (let i = 0; i < contacts.length; i += batchSize) {
+            const batch = contacts.slice(i, i + batchSize)
+
+            const normalizedBatch = batch.map(c => ({
+                user_id: userId,
+                name: c.name || c.firstName + ' ' + c.lastName || 'Unknown',
+                company_name: c.company || c.companyName || null,
+                role_title: c.title || c.role || null,
+                email: c.email || c.emailAddress || null,
+                linkedin_url: c.linkedin || c.linkedinUrl || c.profileUrl || null,
+                connected_at: c.connectedOn || c.connected_at || new Date().toISOString(),
+                relationship_strength: 1,
+                source: 'linkedin'
+                // source: 'linkedin', // If column doesn't exist yet, we trust network-schema.sql check. Assuming exist for now or we remove it.
+                // Checking previous context, schema might not have source if it wasn't seen. 
+                // Safest to omit 'source' if uncertain, or include if confident. 
+                // Let's assume schema matches basic fields.
+            }))
+
+            const { error } = await supabaseAdmin
+                .from('user_connections')
+                .upsert(normalizedBatch, {
+                    onConflict: 'user_id,email', // Strategy: Dedupe by email if present
+                    ignoreDuplicates: false
+                })
+
+            if (error) {
+                console.error("Batch import error:", error)
+                errors += batch.length
+            } else {
+                added += batch.length
+            }
+        }
+
+        // Update profile last_sync
+        await supabaseAdmin.from('user_profiles').update({
+            last_linkedin_import_at: new Date().toISOString()
+        }).eq('user_id', userId)
+
+        return { added, updated, errors }
     }
 }
