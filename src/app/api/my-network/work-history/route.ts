@@ -2,8 +2,25 @@ import { NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 import { NetworkService } from '@/services/networkService';
 
+import { createClient } from '@/utils/supabase/server';
+
 async function getUserId(request: Request) {
-    return 'user_1';
+    const supabase = await createClient();
+    const { data: { user }, error } = await supabase.auth.getUser();
+    if (error || !user) {
+        throw new Error("Unauthorized");
+    }
+    return user.id;
+}
+
+export async function GET(request: Request) {
+    try {
+        const userId = await getUserId(request);
+        const history = await NetworkService.getWorkHistory(userId);
+        return NextResponse.json(history);
+    } catch (error: any) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+    }
 }
 
 export async function POST(request: Request) {

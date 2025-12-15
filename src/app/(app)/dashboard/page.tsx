@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 import {
     Card,
     CardContent,
@@ -23,9 +24,10 @@ import { LoadingState, LoadingSpinner } from "@/components/ui/loading-spinner"
 import { StatsSkeleton, TableSkeleton } from "@/components/ui/loading-skeleton"
 import { EmptyState } from "@/components/ui/empty-state"
 import { ErrorDisplay } from "@/components/ui/error-display"
+import { DashboardOverviewChart } from "@/components/dashboard/dashboard-chart"
 
 // Types for dummy data
-type DashboardStats = {
+export type DashboardStats = {
     introsSuggested: number;
     introsRequested: number;
     outboundSuggested: number;
@@ -95,8 +97,22 @@ export default function DashboardPage() {
         toast.success("Datos actualizados")
     }
 
+    const router = useRouter()
+
     const handleExecuteAction = (actionTitle: string) => {
-        toast.success(`Acción ejecutada: ${actionTitle} `)
+        if (actionTitle.toLowerCase().includes("importar") || actionTitle.toLowerCase().includes("contactos")) {
+            router.push('/my-network')
+            toast.info("Redirigiendo a Mi Red para importar contactos...")
+            return
+        }
+
+        if (actionTitle.toLowerCase().includes("revisar") || actionTitle.toLowerCase().includes("oportunidades")) {
+            router.push('/opportunities')
+            toast.info("Redirigiendo a Oportunidades...")
+            return
+        }
+
+        toast.success(`Acción simulada: ${actionTitle}`)
     }
 
     const handleViewReports = () => {
@@ -135,7 +151,7 @@ export default function DashboardPage() {
     }
 
     return (
-        <div className="space-y-8 animate-in fade-in slide-in-from-bottom duration-700">
+        <div className="space-y-8 animate-in fade-in slide-in-from-bottom duration-700 p-6 pb-20 md:pb-6">
 
             {/* Header */}
             <div className="flex items-center justify-between">
@@ -204,68 +220,14 @@ export default function DashboardPage() {
                 </Card>
             </div>
 
+            {/* Row 2: Charts and Actions */}
             <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-7">
 
-                {/* Top Opportunities Table */}
-                <Card className="col-span-4 border-gray-200 bg-white/40 backdrop-blur-sm shadow-md rounded-2xl hover:shadow-[0_0_20px_rgba(255,90,0,0.08)] transition-all duration-300">
-                    <CardHeader>
-                        <div className="flex items-center justify-between">
-                            <CardTitle className="text-gray-900">Oportunidades Destacadas</CardTitle>
-                            <Button variant="ghost" size="sm" className="text-xs">Ver todas <ArrowRight className="ml-1 h-3 w-3" /></Button>
-                        </div>
-                    </CardHeader>
-                    <CardContent>
-                        {recentOpps.length === 0 ? (
-                            <EmptyState
-                                icon={Lightbulb}
-                                title="No hay oportunidades"
-                                description="La IA generará oportunidades a medida que analice tu red"
-                                action={<Button size="sm" onClick={handleRefreshData}>Actualizar Análisis</Button>}
-                            />
-                        ) : (
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead className="text-gray-900">Empresa</TableHead>
-                                        <TableHead className="text-gray-900">Tipo</TableHead>
-                                        <TableHead className="text-gray-900">Score</TableHead>
-                                        <TableHead className="text-right text-gray-900">Estado</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {recentOpps.map((opp) => (
-                                        <TableRow key={opp.id} className="hover:bg-white/60 transition-colors">
-                                            <TableCell className="font-medium text-gray-900">{opp.company}</TableCell>
-                                            <TableCell>
-                                                <Badge variant="outline" className="font-normal border-gray-300">{opp.type}</Badge>
-                                            </TableCell>
-                                            <TableCell>
-                                                <span className={`font-bold ${opp.score > 90 ? 'text-[#FF5A00]' : 'text-gray-600'}`}>
-                                                    {opp.score}
-                                                </span>
-                                            </TableCell>
-                                            <TableCell className="text-right">
-                                                <Badge
-                                                    variant={
-                                                        opp.status === 'Suggested' ? 'secondary' :
-                                                            opp.status === 'Won' ? 'success' :
-                                                                opp.status === 'In Progress' ? 'outline' : 'default'
-                                                    }
-                                                    className={opp.status === 'Won' ? 'bg-[#FF5A00] text-white' : ''}
-                                                >
-                                                    {opp.status}
-                                                </Badge>
-                                            </TableCell>
-                                        </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                        )}
-                    </CardContent>
-                </Card>
+                {/* Visual Chart - Takes 4 columns */}
+                <DashboardOverviewChart stats={stats} />
 
-                {/* Recommended Actions List */}
-                <Card className="col-span-3 border-gray-200 bg-white/40 backdrop-blur-sm shadow-md rounded-2xl hover:shadow-[0_0_20px_rgba(255,90,0,0.08)] transition-all duration-300">
+                {/* Recommended Actions List - Takes 3 columns */}
+                <Card className="col-span-4 lg:col-span-3 border-gray-200 bg-white/40 backdrop-blur-sm shadow-md rounded-2xl hover:shadow-[0_0_20px_rgba(255,90,0,0.08)] transition-all duration-300">
                     <CardHeader>
                         <CardTitle className="text-gray-900">Acciones Recomendadas</CardTitle>
                     </CardHeader>
@@ -303,8 +265,65 @@ export default function DashboardPage() {
                         </div>
                     </CardContent>
                 </Card>
-
             </div>
+
+            {/* Row 3: Top Opportunities - Full Width */}
+            <Card className="border-gray-200 bg-white/40 backdrop-blur-sm shadow-md rounded-2xl hover:shadow-[0_0_20px_rgba(255,90,0,0.08)] transition-all duration-300">
+                <CardHeader>
+                    <div className="flex items-center justify-between">
+                        <CardTitle className="text-gray-900">Oportunidades Destacadas</CardTitle>
+                        <Button variant="ghost" size="sm" className="text-xs">Ver todas <ArrowRight className="ml-1 h-3 w-3" /></Button>
+                    </div>
+                </CardHeader>
+                <CardContent>
+                    {recentOpps.length === 0 ? (
+                        <EmptyState
+                            icon={Lightbulb}
+                            title="No hay oportunidades"
+                            description="La IA generará oportunidades a medida que analice tu red"
+                            action={<Button size="sm" onClick={handleRefreshData}>Actualizar Análisis</Button>}
+                        />
+                    ) : (
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead className="text-gray-900">Empresa</TableHead>
+                                    <TableHead className="text-gray-900">Tipo</TableHead>
+                                    <TableHead className="text-gray-900">Score</TableHead>
+                                    <TableHead className="text-right text-gray-900">Estado</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {recentOpps.map((opp) => (
+                                    <TableRow key={opp.id} className="hover:bg-white/60 transition-colors">
+                                        <TableCell className="font-medium text-gray-900">{opp.company}</TableCell>
+                                        <TableCell>
+                                            <Badge variant="outline" className="font-normal border-gray-300">{opp.type}</Badge>
+                                        </TableCell>
+                                        <TableCell>
+                                            <span className={`font-bold ${opp.score > 90 ? 'text-[#FF5A00]' : 'text-gray-600'}`}>
+                                                {opp.score}
+                                            </span>
+                                        </TableCell>
+                                        <TableCell className="text-right">
+                                            <Badge
+                                                variant={
+                                                    opp.status === 'Suggested' ? 'secondary' :
+                                                        opp.status === 'Won' ? 'success' :
+                                                            opp.status === 'In Progress' ? 'outline' : 'default'
+                                                }
+                                                className={opp.status === 'Won' ? 'bg-[#FF5A00] text-white' : ''}
+                                            >
+                                                {opp.status}
+                                            </Badge>
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    )}
+                </CardContent>
+            </Card>
         </div>
     )
 }

@@ -1,12 +1,16 @@
 import { NextResponse } from 'next/server';
 import { DashboardService } from '@/services/dashboardService';
+import { createClient } from '@/utils/supabase/server';
 
-// Mock Auth - replace with actual auth in prod
-const getUserId = async (req: Request) => '00000000-0000-0000-0000-000000000001'
+const getUserId = async () => {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    return user?.id || null;
+}
 
 export async function GET(request: Request) {
     try {
-        const userId = await getUserId(request);
+        const userId = await getUserId();
         if (!userId) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }

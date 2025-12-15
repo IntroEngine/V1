@@ -1,11 +1,15 @@
 "use server"
 
-import { matchNetworkToICP, seedDemoNetwork } from "@/services/icp-matching-service"
+import { matchNetworkToICP, seedDemoNetwork, getStoredNetworkMatches } from "@/services/icp-matching-service"
 import { createClient } from "@/utils/supabase/server"
 import { revalidatePath } from "next/cache"
 
 export async function runNetworkAnalysis() {
     return await matchNetworkToICP()
+}
+
+export async function getSavedAnalysis(page: number = 1, limit: number = 10) {
+    return await getStoredNetworkMatches(page, limit)
 }
 
 export async function seedNetworkData() {

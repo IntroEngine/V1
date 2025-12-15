@@ -1,3 +1,4 @@
+
 import Papa from 'papaparse'
 
 export type CSVRow = Record<string, string>
@@ -15,7 +16,9 @@ export interface ValidationError {
 }
 
 export interface ContactCSVRow {
-    name: string
+    name?: string
+    firstName?: string
+    lastName?: string
     email?: string
     company?: string
     title?: string
@@ -56,10 +59,12 @@ export function autoDetectMapping(headers: string[]): Record<string, string> {
     const mapping: Record<string, string> = {}
 
     const patterns = {
-        name: ['name', 'full name', 'fullname', 'nombre', 'contact name', 'first name', 'last name'],
+        firstName: ['first name', 'firstname', 'nombre', 'forename', 'given name'],
+        lastName: ['last name', 'lastname', 'apellido', 'apellidos', 'surname', 'family name'],
+        name: ['full name', 'fullname', 'contact name', 'name', 'nombre completo'],
         email: ['email', 'e-mail', 'correo', 'mail', 'email address'],
         company: ['company', 'organization', 'empresa', 'org', 'organization name'],
-        title: ['title', 'job title', 'position', 'role', 'cargo', 'puesto'],
+        title: ['title', 'job title', 'position', 'role', 'cargo', 'puesto', 'headline', 'occupation'],
         phone: ['phone', 'telephone', 'tel', 'teléfono', 'móvil', 'mobile'],
         linkedin: ['linkedin', 'linkedin url', 'linkedin profile'],
         notes: ['notes', 'description', 'notas', 'comentarios']
@@ -68,8 +73,9 @@ export function autoDetectMapping(headers: string[]): Record<string, string> {
     headers.forEach(header => {
         const normalized = header.toLowerCase().trim()
 
+        // Iterate patterns. IMPORTANT: Check specific name parts before generic 'name'
         for (const [field, patterns_list] of Object.entries(patterns)) {
-            if (patterns_list.some(pattern => normalized.includes(pattern))) {
+            if (patterns_list.some(pattern => normalized === pattern || normalized.includes(pattern))) {
                 mapping[header] = field
                 break
             }
@@ -134,30 +140,36 @@ export function transformCSVRowToContact(
     row: CSVRow,
     mapping: Record<string, string>
 ): ContactCSVRow {
-    const contact: ContactCSVRow = {
-        name: ''
+    const contact: ContactCSVRow = {}
+
+    // Helper to get value
+    const getValue = (fieldKey: string) => {
+        const header = Object.entries(mapping).find(([_, field]) => field === fieldKey)?.[0]
+        return header ? row[header]?.trim() : undefined
     }
 
-    // Try to build name from available fields
-    const nameField = Object.entries(mapping).find(([_, field]) => field === 'name')?.[0]
+    contact.firstName = getValue('firstName')
+    contact.lastName = getValue('lastName')
+    contact.name = getValue('name')
 
-    if (nameField && row[nameField]) {
-        contact.name = row[nameField].trim()
-    } else {
-        // Fallback: use first non-empty column as name
-        const firstValue = Object.values(row).find(v => v?.trim())
-        contact.name = firstValue?.trim() || 'Unknown'
+    // Fallback: If no explicit name but we have parts, construct it
+    if (!contact.name && contact.firstName) {
+        contact.name = [contact.firstName, contact.lastName].filter(Boolean).join(' ')
+    }
+    // Fallback: If no parts but we have name, construct parts (simplistic)
+    if (!contact.firstName && contact.name) {
+        const parts = contact.name.split(' ')
+        contact.firstName = parts[0]
+        contact.lastName = parts.slice(1).join(' ') || ''
     }
 
     // Map other fields
-    Object.entries(mapping).forEach(([csvHeader, field]) => {
-        if (field !== 'name') {
-            const value = row[csvHeader]?.trim()
-            if (value) {
-                contact[field as keyof ContactCSVRow] = value
-            }
-        }
-    })
+    contact.email = getValue('email')
+    contact.company = getValue('company')
+    contact.title = getValue('title')
+    contact.phone = getValue('phone')
+    contact.linkedin = getValue('linkedin')
+    contact.notes = getValue('notes')
 
     return contact
 }

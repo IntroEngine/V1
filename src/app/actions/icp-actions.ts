@@ -39,9 +39,9 @@ export async function saveICPDefinition(data: ICPFormData) {
 
         revalidatePath("/icp-target")
         return { success: true }
-    } catch (e) {
+    } catch (e: any) {
         console.error("Error saving ICP:", e)
-        return { error: "Failed to save ICP definition" }
+        return { error: e.message || "Failed to save ICP definition" }
     }
 }
 

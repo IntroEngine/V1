@@ -12,11 +12,11 @@ import { TrendingUp, TrendingDown, Users, Send, Target, Calendar } from "lucide-
 export default function ReportsPage() {
     // Dummy weekly stats
     const weeklyStats = {
-        introsGenerated: 45,
-        introsAccepted: 12,
-        meetingsBooked: 8,
-        responseRate: 67,
-        avgResponseTime: "2.3 días"
+        introsGenerated: 0,
+        introsAccepted: 0,
+        meetingsBooked: 0,
+        responseRate: 0,
+        avgResponseTime: "N/A"
     }
 
     return (
@@ -99,22 +99,13 @@ export default function ReportsPage() {
                         <div>
                             <h3 className="text-sm font-semibold text-gray-900 mb-3">Mejores Conexiones</h3>
                             <div className="space-y-2">
-                                {[
-                                    { name: "María González", intros: 8, meetings: 5 },
-                                    { name: "Carlos Ruiz", intros: 6, meetings: 4 },
-                                    { name: "Ana Martínez", intros: 5, meetings: 3 }
-                                ].map((person, i) => (
-                                    <div key={i} className="flex items-center justify-between p-3 rounded-lg bg-white/60 border border-gray-200">
-                                        <div>
-                                            <p className="font-medium text-gray-900">{person.name}</p>
-                                            <p className="text-xs text-gray-600">{person.intros} intros generadas</p>
-                                        </div>
-                                        <div className="text-right">
-                                            <p className="text-sm font-bold text-[#FF5A00]">{person.meetings}</p>
-                                            <p className="text-xs text-gray-600">reuniones</p>
-                                        </div>
-                                    </div>
-                                ))}
+                                {weeklyStats.introsGenerated > 0 ? (
+                                    [].map((person: any, i) => (
+                                        <div key={i}></div>
+                                    ))
+                                ) : (
+                                    <p className="text-sm text-gray-500 italic">No hay suficientes datos para mostrar mejores conexiones.</p>
+                                )}
                             </div>
                         </div>
 
@@ -122,12 +113,7 @@ export default function ReportsPage() {
                         <div>
                             <h3 className="text-sm font-semibold text-gray-900 mb-3">Insights Clave</h3>
                             <div className="space-y-2">
-                                <div className="p-3 rounded-lg bg-[#FF5A00]/5 border border-[#FF5A00]/20">
-                                    <p className="text-sm text-gray-900">🎯 Las intros enviadas los martes tienen un 23% más de respuesta</p>
-                                </div>
-                                <div className="p-3 rounded-lg bg-gray-50 border border-gray-200">
-                                    <p className="text-sm text-gray-900">📈 Tu tasa de conversión ha mejorado un 15% este mes</p>
-                                </div>
+                                <p className="text-sm text-gray-500 italic">Los insights aparecerán cuando haya más actividad.</p>
                             </div>
                         </div>
                     </div>

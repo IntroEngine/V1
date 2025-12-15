@@ -1,133 +1,66 @@
 "use client"
 
-import {
-    Card,
-    CardContent,
-    CardHeader,
-    CardTitle
-} from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Bell, User, Lock, CreditCard } from "lucide-react"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { ICPForm } from "@/components/settings/icp-form"
+import { IntegrationsList } from "@/components/settings/integrations-list"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { User, Shield, Bell } from "lucide-react"
 
 export default function SettingsPage() {
     return (
-        <div className="space-y-8">
-            {/* Header */}
+        <div className="space-y-6 animate-in fade-in slide-in-from-bottom duration-500">
             <div>
                 <h2 className="text-3xl font-bold tracking-tight text-gray-900">Configuración</h2>
-                <p className="text-gray-600 mt-1">
-                    Administra las preferencias de tu cuenta y aplicación.
-                </p>
+                <p className="text-gray-600 mt-1">Administra tus preferencias, integraciones y perfil de cliente ideal.</p>
             </div>
 
-            {/* Settings Sections */}
-            <div className="grid gap-6 md:grid-cols-2">
+            <Tabs defaultValue="icp" className="w-full">
+                <TabsList className="grid w-full grid-cols-3 lg:w-[400px]">
+                    <TabsTrigger value="icp">ICP & Objetivos</TabsTrigger>
+                    <TabsTrigger value="integrations">Integraciones</TabsTrigger>
+                    <TabsTrigger value="general">General</TabsTrigger>
+                </TabsList>
 
-                {/* Profile Settings */}
-                <Card className="border-gray-200 bg-white/40 backdrop-blur-sm">
-                    <CardHeader>
-                        <div className="flex items-center gap-3">
-                            <div className="h-10 w-10 rounded-lg bg-[#FF5A00]/10 flex items-center justify-center">
-                                <User className="h-5 w-5 text-[#FF5A00]" />
-                            </div>
-                            <div>
-                                <CardTitle className="text-gray-900">Perfil</CardTitle>
-                                <p className="text-sm text-gray-600 mt-1">Información personal y contacto</p>
-                            </div>
-                        </div>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="space-y-3">
-                            <div>
-                                <label className="text-sm font-medium text-gray-900">Nombre</label>
-                                <p className="text-sm text-gray-600">Usuario Demo</p>
-                            </div>
-                            <div>
-                                <label className="text-sm font-medium text-gray-900">Email</label>
-                                <p className="text-sm text-gray-600">demo@introengine.com</p>
-                            </div>
-                            <Button variant="outline" size="sm" className="mt-2">Editar Perfil</Button>
-                        </div>
-                    </CardContent>
-                </Card>
+                <TabsContent value="icp" className="mt-6">
+                    <ICPForm />
+                </TabsContent>
 
-                {/* Notifications */}
-                <Card className="border-gray-200 bg-white/40 backdrop-blur-sm">
-                    <CardHeader>
-                        <div className="flex items-center gap-3">
-                            <div className="h-10 w-10 rounded-lg bg-[#FF5A00]/10 flex items-center justify-center">
-                                <Bell className="h-5 w-5 text-[#FF5A00]" />
-                            </div>
-                            <div>
-                                <CardTitle className="text-gray-900">Notificaciones</CardTitle>
-                                <p className="text-sm text-gray-600 mt-1">Gestiona alertas y emails</p>
-                            </div>
-                        </div>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="space-y-3">
-                            <div className="flex items-center justify-between">
-                                <span className="text-sm text-gray-900">Nuevas intros</span>
-                                <input type="checkbox" defaultChecked className="accent-[#FF5A00]" />
-                            </div>
-                            <div className="flex items-center justify-between">
-                                <span className="text-sm text-gray-900">Resumen semanal</span>
-                                <input type="checkbox" defaultChecked className="accent-[#FF5A00]" />
-                            </div>
-                            <div className="flex items-center justify-between">
-                                <span className="text-sm text-gray-900">Actualizaciones</span>
-                                <input type="checkbox" className="accent-[#FF5A00]" />
-                            </div>
-                        </div>
-                    </CardContent>
-                </Card>
+                <TabsContent value="integrations" className="mt-6">
+                    <IntegrationsList />
+                </TabsContent>
 
-                {/* Security */}
-                <Card className="border-gray-200 bg-white/40 backdrop-blur-sm">
-                    <CardHeader>
-                        <div className="flex items-center gap-3">
-                            <div className="h-10 w-10 rounded-lg bg-[#FF5A00]/10 flex items-center justify-center">
-                                <Lock className="h-5 w-5 text-[#FF5A00]" />
+                <TabsContent value="general" className="mt-6">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Configuración General</CardTitle>
+                            <CardDescription>Preferencias de tu cuenta personal.</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <div className="flex items-center gap-4 p-4 border rounded-lg">
+                                <User className="h-6 w-6 text-gray-500" />
+                                <div>
+                                    <p className="font-medium">Perfil de Usuario</p>
+                                    <p className="text-sm text-gray-500">Actualiza tu foto y datos personales</p>
+                                </div>
                             </div>
-                            <div>
-                                <CardTitle className="text-gray-900">Seguridad</CardTitle>
-                                <p className="text-sm text-gray-600 mt-1">Contraseña y autenticación</p>
+                            <div className="flex items-center gap-4 p-4 border rounded-lg">
+                                <Bell className="h-6 w-6 text-gray-500" />
+                                <div>
+                                    <p className="font-medium">Notificaciones</p>
+                                    <p className="text-sm text-gray-500">Gestiona alertas de email y push</p>
+                                </div>
                             </div>
-                        </div>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="space-y-3">
-                            <Button variant="outline" size="sm" className="w-full">Cambiar Contraseña</Button>
-                            <Button variant="outline" size="sm" className="w-full">Configurar 2FA</Button>
-                        </div>
-                    </CardContent>
-                </Card>
-
-                {/* Billing */}
-                <Card className="border-gray-200 bg-white/40 backdrop-blur-sm">
-                    <CardHeader>
-                        <div className="flex items-center gap-3">
-                            <div className="h-10 w-10 rounded-lg bg-[#FF5A00]/10 flex items-center justify-center">
-                                <CreditCard className="h-5 w-5 text-[#FF5A00]" />
+                            <div className="flex items-center gap-4 p-4 border rounded-lg">
+                                <Shield className="h-6 w-6 text-gray-500" />
+                                <div>
+                                    <p className="font-medium">Seguridad</p>
+                                    <p className="text-sm text-gray-500">Cambiar contraseña y 2FA</p>
+                                </div>
                             </div>
-                            <div>
-                                <CardTitle className="text-gray-900">Facturación</CardTitle>
-                                <p className="text-sm text-gray-600 mt-1">Plan y métodos de pago</p>
-                            </div>
-                        </div>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="space-y-3">
-                            <div>
-                                <label className="text-sm font-medium text-gray-900">Plan Actual</label>
-                                <p className="text-sm text-gray-600">Professional</p>
-                            </div>
-                            <Button size="sm" className="mt-2">Gestionar Suscripción</Button>
-                        </div>
-                    </CardContent>
-                </Card>
-
-            </div>
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+            </Tabs>
         </div>
     )
 }

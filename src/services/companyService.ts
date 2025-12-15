@@ -19,71 +19,79 @@ const mapToCompany = (row: any): Company => ({
 export class CompanyService {
 
     static async getCompanies(userId: string): Promise<Company[]> {
-        // MOCK DATA MODE (Database not connected yet)
-        console.log('Fetching mock companies for user:', userId);
-        return [
-            {
-                id: '1',
-                name: 'TechCorp SA',
-                domain: 'techcorp.com',
-                industry: 'Technology',
-                contactsCount: 12,
-                opportunitiesCount: 5,
-                score: 92,
-                status: 'Active',
-                hubspotSynced: true,
-                hubspotId: 'hs-12345',
-                description: 'Leading technology solutions provider'
-            },
-            {
-                id: '2',
-                name: 'Global Solutions',
-                domain: 'globalsolutions.io',
-                industry: 'Consulting',
-                contactsCount: 8,
-                opportunitiesCount: 3,
-                score: 85,
-                status: 'Active',
-                hubspotSynced: true,
-                hubspotId: 'hs-67890'
-            },
-            {
-                id: '3',
-                name: 'InnovateX',
-                domain: 'innovatex.com',
-                industry: 'SaaS',
-                contactsCount: 15,
-                opportunitiesCount: 7,
-                score: 88,
-                status: 'Active',
-                hubspotSynced: false
-            }
-        ];
+        const { data, error } = await supabaseAdmin
+            .from('prospects')
+            .select('*')
+            .eq('user_id', userId)
+            .order('created_at', { ascending: false });
+
+        if (error) {
+            console.error('Error fetching companies:', error);
+            // Return empty array instead of throwing to avoid crashing UI for new users
+            return [];
+        }
+
+        return data.map(mapToCompany);
     }
 
     static async createCompany(userId: string, data: Partial<Company>): Promise<Company> {
-        // MOCK CREATE
-        return {
-            id: Math.random().toString(36).substr(2, 9),
-            name: data.name || 'New Company',
-            domain: data.domain || '',
-            industry: data.industry || 'Unknown',
-            contactsCount: 0,
-            opportunitiesCount: 0,
-            score: 0,
-            status: data.status === 'Active' ? 'Active' : 'Prospect',
-            hubspotSynced: false,
-            description: data.description
+        const payload = {
+            user_id: userId,
+            company_name: data.name,
+            domain: data.domain,
+            industry: data.industry,
+            status: data.status === 'Active' ? 'approved' : data.status === 'Inactive' ? 'rejected' : 'new',
+            description: data.description,
+            // contacts_count and opportunities_count are computed or updated separately
+            updated_at: new Date().toISOString()
         };
+
+        const { data: newProspect, error } = await supabaseAdmin
+            .from('prospects')
+            .insert(payload)
+            .select()
+            .single();
+
+        if (error) {
+            console.error('Error creating company:', error);
+            throw error;
+        }
+
+        return mapToCompany(newProspect);
     }
 
     static async updateCompany(userId: string, id: string, data: Partial<Company>): Promise<void> {
-        // MOCK UPDATE
-        console.log(`Mock updated company ${id}`, data);
+        const payload: any = {};
+        if (data.name) payload.company_name = data.name;
+        if (data.domain) payload.domain = data.domain;
+        if (data.industry) payload.industry = data.industry;
+        if (data.description) payload.description = data.description;
+        if (data.status) payload.status = data.status === 'Active' ? 'approved' : data.status === 'Inactive' ? 'rejected' : 'new';
+
+        payload.updated_at = new Date().toISOString();
+
+        const { error } = await supabaseAdmin
+            .from('prospects')
+            .update(payload)
+            .eq('id', id)
+            .eq('user_id', userId);
+
+        if (error) {
+            console.error('Error updating company:', error);
+            throw error;
+        }
     }
 
     static async deleteCompany(userId: string, id: string): Promise<void> {
-        // MOCK DELETE
-        console.log(`Mock deleted company ${id}`);
+        const { error } = await supabaseAdmin
+            .from('prospects')
+            .delete()
+            .eq('id', id)
+            .eq('user_id', userId);
+
+        if (error) {
+            console.error('Error deleting company:', error);
+            throw error;
+        }
     }
 }

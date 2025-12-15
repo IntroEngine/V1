@@ -1,5 +1,6 @@
 import { supabaseAdmin } from '@/config/supabase';
 import { UserConnection, WorkHistory } from '@/types/network';
+import { getICPDefinition } from '@/app/actions/icp-actions';
 
 type InferredRelationship = {
     user_id: string;
@@ -8,6 +9,7 @@ type InferredRelationship = {
     inference_type: 'ALUMNI' | 'INDUSTRY' | 'GEOGRAPHY' | 'MUTUAL_CONNECTION';
     confidence_score: number;
     reasoning: string;
+    supporting_data?: any; // Added field
     is_active: boolean;
     generated_at: string;
 };
@@ -21,10 +23,11 @@ export class InferenceService {
     static async generateInferences(userId: string): Promise<{ created: number }> {
         console.log(`[InferenceService] Starting analysis for user ${userId}`);
 
-        // 1. Fetch User Context
-        const [connections, workHistory] = await Promise.all([
+        // 1. Fetch User Context & ICP
+        const [connections, workHistory, icp] = await Promise.all([
             this.getUserConnections(userId),
-            this.getUserWorkHistory(userId)
+            this.getUserWorkHistory(userId),
+            getICPDefinition().catch(() => null) // Handle if ICP fails or not found (though it should be safe)
         ]);
 
         if (connections.length === 0) {
@@ -32,30 +35,65 @@ export class InferenceService {
             return { created: 0 };
         }
 
-        // 2. Run Inference Strategies
-        // Strategy A: "Former Colleagues" Logic (Alumni)
-        // Ensure we find connections who worked at the same company as the user (implicit in "ex-colleague" connection type)
-        // OR explicit match of connection.company_name == workHistory.company_name
-
-        // Strategy B: "Direct Access" (Current Role)
-        // If a connection works at a target company now.
-        // For this MVP, since we don't have a rigid "Target List", we will treat ALL strong connections at reputable companies as opportunities.
-        // Or better: filter for Companies that look interesting (mock heuristic).
+        // Prepare ICP Matchers
+        const targetRoles = icp?.key_roles?.map((r: string) => r.toLowerCase()) || [];
+        const hasIcp = targetRoles.length > 0;
 
         const inferences: InferredRelationship[] = [];
 
         // --- Logic: Direct Connect (Strong Connections) ---
         // "You know someone at Company X"
         connections.forEach(conn => {
-            // Filter: Only consider strong relationships (>= 3) and valid companies
-            if (conn.relationship_strength >= 3 && conn.company_name) {
+            // Filter: Consider all relationships (>= 1) as potential bridges
+            if (conn.relationship_strength >= 1 && conn.company_name) {
+
+                // ICP SCORING
+                let icpBoost = 0;
+                let icpReason = '';
+                let bestContact: any = null; // Store the best contact to show
+                let isMatch = false; // Declared here
+
+                const contacts = conn.key_contacts || [];
+
+                if (hasIcp) {
+                    // Check titles of key contacts
+                    const matchingContact = contacts.find(c => {
+                        const title = (c.title || '').toLowerCase();
+                        return targetRoles.some((role: string) => title.includes(role));
+                    });
+
+                    if (matchingContact) {
+                        icpBoost = 20;
+                        bestContact = matchingContact; // We found a winner
+                        isMatch = true; // Restored
+                        icpReason = ` | Matches ICP Role: ${matchingContact.title}`;
+                    }
+                }
+
+                // Fallback: If no ICP match, take the first one or the "most senior" if we had logic
+                if (!bestContact && contacts.length > 0) {
+                    bestContact = contacts[0];
+                }
+
+                // If user wants STRICT relation, we might filter out non-matches IF we have an ICP
+                // But let's just use score to sort them to top.
+
+                if (hasIcp && !isMatch) {
+                    // Reduce confidence for non-ICP matches?
+                    // Or keep them but lower.
+                }
+
                 inferences.push({
                     user_id: userId,
                     target_company: conn.company_name,
                     bridge_company: undefined, // Direct
-                    inference_type: 'MUTUAL_CONNECTION', // or DIRECT if we had it in enum. Schema says MUTUAL_CONNECTION is closest for "I know a guy"
-                    confidence_score: 80 + (conn.relationship_strength * 4), // Base 80, up to 100
-                    reasoning: `Strong connection with ${conn.contact_count > 0 ? 'contacts' : 'a contact'} at ${conn.company_name}`,
+                    inference_type: 'MUTUAL_CONNECTION',
+                    // Score: Base 50 + (Strength * 10) + ICP Boost
+                    confidence_score: Math.min(100, 50 + (conn.relationship_strength * 10) + icpBoost),
+                    reasoning: `You have ${conn.contact_count > 0 ? 'contacts' : 'a contact'} at ${conn.company_name}${icpReason}`,
+                    supporting_data: {
+                        bridge_contact: bestContact // Persist the best contact!
+                    },
                     is_active: true,
                     generated_at: new Date().toISOString()
                 });

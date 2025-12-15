@@ -18,54 +18,99 @@ export type DashboardAction = {
 export class DashboardService {
 
     static async getStats(userId: string): Promise<DashboardStats> {
-        // 1. Intros Suggested: Active inferred relationships of type ALUMNI or MUTUAL_CONNECTION
-        const { count: introCount } = await supabaseAdmin
+        // 1. Capa 2: Network Matches (icp_match_score > 40)
+        // Only count those that are still 'Suggested' or 'new'
+        const { count: capa2Count } = await supabaseAdmin
+            .from('user_connections')
+            .select('*', { count: 'exact', head: true })
+            .eq('user_id', userId)
+            .gt('icp_match_score', 40);
+
+        // 2. Capa 3: AI Inferred Relationships (Active)
+        // Count statuses separately
+        const { count: introSuggested } = await supabaseAdmin
             .from('inferred_relationships')
             .select('*', { count: 'exact', head: true })
             .eq('user_id', userId)
             .eq('is_active', true)
-            .in('inference_type', ['ALUMNI', 'MUTUAL_CONNECTION']);
+            .eq('status', 'Suggested');
 
-        // 2. Intros Requested (Mock for now, or check a separate table/status if it existed)
-        // For MVP we don't have a 'requests' table, so we return 0 or mock.
-        const introsRequested = 0;
+        const { count: introRequested } = await supabaseAdmin
+            .from('inferred_relationships')
+            .select('*', { count: 'exact', head: true })
+            .eq('user_id', userId)
+            .eq('is_active', true)
+            .in('status', ['Requested', 'In Progress']);
 
-        // 3. Outbound Suggested (Mock or from 'prospects' table if populated)
-        const { count: outboundCount } = await supabaseAdmin
+        const { count: introWon } = await supabaseAdmin
+            .from('inferred_relationships')
+            .select('*', { count: 'exact', head: true })
+            .eq('user_id', userId)
+            .eq('is_active', true)
+            .eq('status', 'Won');
+
+        // 3. Outbound Suggested (Prospects New)
+        const { count: outboundSuggested } = await supabaseAdmin
             .from('prospects')
             .select('*', { count: 'exact', head: true })
             .eq('user_id', userId)
-            .eq('status', 'new');
+            .in('status', ['new', 'Suggested']);
 
-        // 4. Won Deals (Mock)
-        const wonDeals = 0;
+        const { count: outboundWon } = await supabaseAdmin
+            .from('prospects')
+            .select('*', { count: 'exact', head: true })
+            .eq('user_id', userId)
+            .eq('status', 'Won');
 
         return {
-            introsSuggested: introCount || 0,
-            introsRequested,
-            outboundSuggested: outboundCount || 0,
-            wonDeals
+            introsSuggested: (capa2Count || 0) + (introSuggested || 0),
+            introsRequested: introRequested || 0,
+            outboundSuggested: outboundSuggested || 0,
+            wonDeals: (introWon || 0) + (outboundWon || 0)
         }
     }
 
     static async getRecentOpportunities(userId: string, limit = 5): Promise<any[]> {
-        const { data } = await supabaseAdmin
+        // Fetch Capa 2 Matches
+        const { data: capa2 } = await supabaseAdmin
+            .from('user_connections')
+            .select('id, company_name, icp_match_score, icp_match_type')
+            .eq('user_id', userId)
+            .gt('icp_match_score', 40)
+            .order('icp_match_score', { ascending: false })
+            .limit(limit);
+
+        // Fetch Capa 3 Inferences
+        const { data: capa3 } = await supabaseAdmin
             .from('inferred_relationships')
-            .select('*')
+            .select('id, target_company, confidence_score, inference_type')
             .eq('user_id', userId)
             .eq('is_active', true)
             .order('confidence_score', { ascending: false })
             .limit(limit);
 
-        if (!data) return [];
+        // Normalize and Merge
+        const opportunities = [
+            ...(capa2 || []).map(c => ({
+                id: c.id,
+                company: c.company_name,
+                type: 'Intro', // Direct connections are always Intros
+                score: c.icp_match_score,
+                status: 'Suggested'
+            })),
+            ...(capa3 || []).map(c => ({
+                id: c.id,
+                company: c.target_company,
+                type: ['MUTUAL_CONNECTION', 'ALUMNI'].includes(c.inference_type) ? 'Intro' : 'Outbound',
+                score: c.confidence_score,
+                status: 'Suggested'
+            }))
+        ];
 
-        return data.map(item => ({
-            id: item.id,
-            company: item.target_company,
-            type: 'Intro', // Inferred are mostly Intros for now
-            score: item.confidence_score,
-            status: 'Suggested' // Default status for new inferences
-        }));
+        // Sort by score and take top N
+        return opportunities
+            .sort((a, b) => b.score - a.score)
+            .slice(0, limit);
     }
 
     static async getRecommendedActions(userId: string): Promise<DashboardAction[]> {
@@ -88,20 +133,8 @@ export class DashboardService {
             });
         }
 
-        // Action 2: Low Data?
-        const { count: connections } = await supabaseAdmin
-            .from('user_connections')
-            .select('*', { count: 'exact', head: true })
-            .eq('user_id', userId);
-
-        if (!connections || connections < 10) {
-            actions.push({
-                id: 'a2',
-                title: 'Importar Contactos',
-                description: 'Importa más contactos de LinkedIn para generar mejores oportunidades.',
-                priority: 'High'
-            });
-        }
+        // Action 2: Low Data check removed to avoid appearing as "mock data" for new users
+        // Use this space for future actionable insights based on real activity
 
         return actions;
     }

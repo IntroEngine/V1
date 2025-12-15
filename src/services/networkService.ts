@@ -207,17 +207,67 @@ export class NetworkService {
             return [];
         }
 
-        return data.map(item => ({
-            id: item.id,
-            target_company: item.target_company,
-            bridge_company: item.bridge_company,
-            confidence_score: item.confidence_score,
-            reasoning: item.reasoning,
-            type: item.inference_type,
-            // Defaults for fields not yet in DB
-            target_role: 'Decision Maker',
-            bridge_person: 'Ex-Colleague'
-        }));
+        // We need to fetch the bridge contact details (the UserConnection)
+        // Optimization: Fetch all relevant connections in one go
+        const companyNames = data.map(o => o.target_company).filter(Boolean);
+        const { data: connections } = await supabaseAdmin
+            .from('user_connections')
+            .select('company_name, contact_count, relationship_strength, key_contacts')
+            .eq('user_id', userId)
+            .in('company_name', companyNames);
+
+        const connMap = new Map<string, any>();
+        if (connections) {
+            connections.forEach(c => connMap.set(c.company_name, c));
+        }
+
+        return data.map(item => {
+            const conn = connMap.get(item.target_company);
+            // Construct meaningful bridge contact info
+            let bridgeName = 'Unknown Connection';
+            let bridgeRole = 'Connection';
+
+            // Priority 1: Use the contact identified by AI Inference (e.g. the ICP match)
+            if (item.supporting_data && item.supporting_data.bridge_contact) {
+                bridgeName = item.supporting_data.bridge_contact.name || item.supporting_data.bridge_contact.firstName || 'Unknown';
+                bridgeRole = item.supporting_data.bridge_contact.title || item.supporting_data.bridge_contact.role || 'Contact';
+            }
+            // Priority 2: Use the first contact from the connection
+            else if (conn && conn.key_contacts && conn.key_contacts.length > 0) {
+                const contact = conn.key_contacts[0];
+                bridgeName = contact.name || 'Unknown';
+                bridgeRole = contact.title || 'Contact';
+            } else if (conn) {
+                bridgeName = `${conn.contact_count} Contact(s)`;
+            }
+
+            return {
+                id: item.id,
+                type: item.inference_type === 'MUTUAL_CONNECTION' ? 'Intro' : 'Outbound', // Map inference type to UI type
+                targetCompany: item.target_company,
+                targetCompanyId: 'unknown', // We don't have this yet linked easily
+
+                // Construct Target Contact (The person we want to meet)
+                // For now, this is hypothetical/placeholder until we have enrichment
+                targetContact: {
+                    name: 'Decision Maker',
+                    role: 'Relevant Role',
+                    email: 'To be enriched'
+                },
+
+                // Construct Bridge Contact (The person who introduces us)
+                bridgeContact: {
+                    name: bridgeName,
+                    role: bridgeRole,
+                    relationshipStrength: conn ? (conn.relationship_strength * 20) : 0 // Convert 1-5 to 0-100 scale roughly equivalent
+                },
+
+                aiScore: item.confidence_score,
+                reasoning: item.reasoning,
+                status: 'Suggested', // Default
+                createdDate: item.generated_at
+            };
+        });
     }
 
     static async getNetworkStats(userId: string): Promise<NetworkStats> {
@@ -237,8 +287,13 @@ export class NetworkService {
             if (w.company_industry) uniqueIndustries.add(w.company_industry);
         });
 
-        // Intro opportunities (Mock for now, or count from inferred relationships if we had them)
-        // For MVP we can query 'inferred_relationships' count
+        // Get true count of connections (bypass 1000 limit of the array)
+        const { count: trueConnectionCount } = await supabaseAdmin
+            .from('user_connections')
+            .select('*', { count: 'exact', head: true })
+            .eq('user_id', userId);
+
+        // Intro opportunities count
         const { count: introCount } = await supabaseAdmin
             .from('inferred_relationships')
             .select('*', { count: 'exact', head: true })
@@ -246,7 +301,7 @@ export class NetworkService {
 
         return {
             total_companies_worked: workHistory.length,
-            total_connections: connections.length,
+            total_connections: trueConnectionCount || connections.length, // Fallback to array length
             total_industries: uniqueIndustries.size,
             total_intro_opportunities: introCount || 0,
             profile_completeness: profile?.profile_completeness || 0
@@ -261,47 +316,143 @@ export class NetworkService {
         let updated = 0
         let errors = 0
 
-        // Process in batches of 50 to avoid request size limits
-        const batchSize = 50
-        for (let i = 0; i < contacts.length; i += batchSize) {
-            const batch = contacts.slice(i, i + batchSize)
+        // 1. Group contacts by Company Name
+        const companyMap = new Map<string, any[]>();
 
-            const normalizedBatch = batch.map(c => ({
+        contacts.forEach(c => {
+            const companyName = c.company || c.companyName || c['Company Name'] || null;
+            if (companyName) {
+                if (!companyMap.has(companyName)) {
+                    companyMap.set(companyName, []);
+                }
+                companyMap.get(companyName)!.push(c);
+            }
+        });
+
+        // 2. Process Companies (Prospects) - Batch Operations
+        const companies = Array.from(companyMap.keys());
+        const companyIdMap = new Map<string, string>(); // Name -> UUID
+
+        // Upsert companies into 'prospects'
+        // We do this in chunks to avoid massive payloads
+        const companyBatchSize = 50;
+        for (let i = 0; i < companies.length; i += companyBatchSize) {
+            const batchNames = companies.slice(i, i + companyBatchSize);
+
+            const prospectsPayload = batchNames.map(name => ({
                 user_id: userId,
-                name: c.name || c.firstName + ' ' + c.lastName || 'Unknown',
-                company_name: c.company || c.companyName || null,
-                role_title: c.title || c.role || null,
-                email: c.email || c.emailAddress || null,
-                linkedin_url: c.linkedin || c.linkedinUrl || c.profileUrl || null,
-                connected_at: c.connectedOn || c.connected_at || new Date().toISOString(),
-                relationship_strength: 1,
-                source: 'linkedin'
-                // source: 'linkedin', // If column doesn't exist yet, we trust network-schema.sql check. Assuming exist for now or we remove it.
-                // Checking previous context, schema might not have source if it wasn't seen. 
-                // Safest to omit 'source' if uncertain, or include if confident. 
-                // Let's assume schema matches basic fields.
-            }))
+                company_name: name,
+                status: 'new', // Default status for imported companies
+                source: 'linkedin_import',
+                updated_at: new Date().toISOString()
+            }));
 
-            const { error } = await supabaseAdmin
-                .from('user_connections')
-                .upsert(normalizedBatch, {
-                    onConflict: 'user_id,email', // Strategy: Dedupe by email if present
+            // Upsert (on conflict do nothing or update? update to get ID)
+            const { data: upsertedCompanies, error: prospectError } = await supabaseAdmin
+                .from('prospects')
+                .upsert(prospectsPayload, {
+                    onConflict: 'user_id,company_name',
                     ignoreDuplicates: false
                 })
+                .select('id, company_name'); // Need IDs
 
-            if (error) {
-                console.error("Batch import error:", error)
-                errors += batch.length
-            } else {
-                added += batch.length
+            if (prospectError) {
+                console.error("Error upserting companies:", prospectError);
+                errors += batchNames.length;
+            } else if (upsertedCompanies) {
+                upsertedCompanies.forEach(c => {
+                    companyIdMap.set(c.company_name, c.id);
+                });
             }
         }
 
-        // Update profile last_sync
-        await supabaseAdmin.from('user_profiles').update({
-            last_linkedin_import_at: new Date().toISOString()
-        }).eq('user_id', userId)
+        // 3. Process Contacts & User Connections
+        // We will do both: 
+        // A) Populate 'contacts' table (New Request)
+        // B) Populate 'user_connections' (Legacy/Current View) 
 
-        return { added, updated, errors }
+        const contactPayloads: any[] = [];
+        const connectionPayloads: any[] = [];
+
+        for (const [companyName, people] of companyMap.entries()) {
+            const companyId = companyIdMap.get(companyName);
+
+            // Prepare 'contacts' payloads
+            people.forEach(p => {
+                const firstName = p.firstName || (p.name ? p.name.split(' ')[0] : 'Unknown');
+                const lastName = p.lastName || (p.name ? p.name.split(' ').slice(1).join(' ') : '');
+
+                contactPayloads.push({
+                    user_id: userId,
+                    company_id: companyId || null, // Link to prospect if exists
+                    first_name: firstName,
+                    last_name: lastName,
+                    email: p.email || p.emailAddress || null,
+                    linkedin_url: p.linkedin || p.linkedinUrl || null,
+                    title: p.title || p.position || p.role || null,
+                    source: 'linkedin',
+                    created_at: new Date().toISOString()
+                });
+            });
+
+            // Prepare 'user_connections' payload (Legacy)
+            const keyContacts = people.map(p => {
+                let role = p.title || p.position || p.role || null;
+                if (role && (role.toLowerCase() === 'connection' || role.toLowerCase() === 'member')) {
+                    role = null;
+                }
+                return {
+                    name: p.name || p.firstName + ' ' + p.lastName || 'Unknown',
+                    role: role,
+                    email: p.email || p.emailAddress || null,
+                    linkedin: p.linkedin || p.linkedinUrl || null,
+                    connected_at: p.connectedOn || p.connected_at || null
+                };
+            });
+
+            connectionPayloads.push({
+                user_id: userId,
+                company_name: companyName,
+                relationship_strength: 1,
+                contact_count: people.length,
+                key_contacts: keyContacts,
+                source: 'linkedin',
+                connection_type: 'other',
+                updated_at: new Date().toISOString()
+            });
+        }
+
+        // Batch Insert Contacts
+        const contactBatchSize = 100;
+        for (let i = 0; i < contactPayloads.length; i += contactBatchSize) {
+            const batch = contactPayloads.slice(i, i + contactBatchSize);
+            const { error } = await supabaseAdmin
+                .from('contacts')
+                .upsert(batch, { onConflict: 'user_id,email', ignoreDuplicates: true }); // Avoid dupe emails
+
+            if (error) {
+                console.error("Error inserting contacts batch:", error);
+                // Don't fail the whole import, just log
+            } else {
+                added += batch.length;
+            }
+        }
+
+        // Batch Insert User Connections (Legacy)
+        // Keep this to ensure "My Network" view still works
+        for (let i = 0; i < connectionPayloads.length; i += 50) {
+            const batch = connectionPayloads.slice(i, i + 50);
+            await supabaseAdmin
+                .from('user_connections')
+                .upsert(batch, { onConflict: 'user_id,company_name' });
+        }
+
+        // 4. Update profile last_sync
+        await supabaseAdmin.from('user_profiles').update({
+            last_sync_at: new Date().toISOString()
+        }).eq('user_id', userId);
+
+        return { added, updated, errors };
     }
 }
+

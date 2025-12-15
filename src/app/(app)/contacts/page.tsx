@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import {
     Card,
     CardContent,
@@ -34,6 +34,7 @@ import {
     Upload
 } from "lucide-react"
 import { CSVUploadModal } from "@/components/ui/csv-upload"
+import { ContactModal } from "@/components/ui/contact-modal"
 import { useToast } from "@/hooks/use-toast"
 
 // Types
@@ -66,100 +67,44 @@ export default function ContactsPage() {
     const [filterRelationship, setFilterRelationship] = useState<string>("all")
     const [filterHubspot, setFilterHubspot] = useState<string>("all")
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
-    const [isEditModalOpen, setIsEditModalOpen] = useState(false)
     const [isCSVUploadOpen, setIsCSVUploadOpen] = useState(false)
-    const [selectedContact, setSelectedContact] = useState<Contact | null>(null)
+    const [selectedContact, setSelectedContact] = useState<Contact | null>(null) // If null -> Create, if set -> Edit
 
-    // TODO: Fetch real data from /api/contacts
-    // const { data, isLoading } = useQuery(...)
+    // State
+    const [contacts, setContacts] = useState<Contact[]>([])
+    const [isLoading, setIsLoading] = useState(true)
 
-    // Dummy Stats Data
+    // Derived Stats
     const stats = {
-        totalContacts: 342,
-        strongRelationships: 87,
-        introOpportunities: 45,
-        hubspotSynced: 298
+        totalContacts: contacts.length,
+        strongRelationships: contacts.filter(c => c.relationshipStrength >= 80).length,
+        introOpportunities: contacts.filter(c => c.introPotential >= 70).length,
+        hubspotSynced: contacts.filter(c => c.hubspotSynced).length
     }
 
-    // Dummy Contacts Data
-    const contacts: Contact[] = [
-        {
-            id: '1',
-            firstName: 'Juan',
-            lastName: 'Pérez',
-            email: 'juan.perez@techcorp.com',
-            company: 'TechCorp SA',
-            companyId: '1',
-            role: 'Chief Technology Officer',
-            seniority: 'C-Level',
-            relationshipStrength: 92,
-            introPotential: 88,
-            lastContactDate: '2024-12-05',
-            phone: '+34 600 123 456',
-            linkedinUrl: 'https://linkedin.com/in/juanperez',
-            hubspotSynced: true,
-            hubspotId: 'hs-c-12345',
-            notes: 'Met at Tech Summit 2024'
-        },
-        {
-            id: '2',
-            firstName: 'Ana',
-            lastName: 'García',
-            email: 'ana.garcia@globalsolutions.io',
-            company: 'Global Solutions',
-            companyId: '2',
-            role: 'VP of Sales',
-            seniority: 'VP',
-            relationshipStrength: 85,
-            introPotential: 92,
-            lastContactDate: '2024-12-01',
-            hubspotSynced: true,
-            hubspotId: 'hs-c-67890'
-        },
-        {
-            id: '3',
-            firstName: 'Carlos',
-            lastName: 'Ruiz',
-            email: 'carlos.ruiz@innovatex.com',
-            company: 'InnovateX',
-            companyId: '3',
-            role: 'Engineering Director',
-            seniority: 'Director',
-            relationshipStrength: 78,
-            introPotential: 75,
-            lastContactDate: '2024-11-28',
-            hubspotSynced: false
-        },
-        {
-            id: '4',
-            firstName: 'María',
-            lastName: 'López',
-            email: 'maria.lopez@alphalog.com',
-            company: 'Alpha Logistics',
-            companyId: '4',
-            role: 'Product Manager',
-            seniority: 'Manager',
-            relationshipStrength: 65,
-            introPotential: 58,
-            lastContactDate: '2024-11-15',
-            hubspotSynced: true,
-            hubspotId: 'hs-c-11223'
-        },
-        {
-            id: '5',
-            firstName: 'David',
-            lastName: 'Martínez',
-            email: 'david.martinez@betasys.net',
-            company: 'Beta Systems',
-            companyId: '5',
-            role: 'Senior Developer',
-            seniority: 'IC',
-            relationshipStrength: 45,
-            introPotential: 32,
-            lastContactDate: '2024-10-20',
-            hubspotSynced: false
-        },
-    ]
+    // Fetch Contacts
+    const fetchContacts = async () => {
+        setIsLoading(true)
+        try {
+            const res = await fetch('/api/contacts')
+            if (!res.ok) {
+                const errText = await res.text();
+                console.error(`Fetch error: ${res.status} ${res.statusText}`, errText);
+                throw new Error(`Failed to fetch: ${res.status}`)
+            }
+            const data = await res.json()
+            setContacts(data)
+        } catch (error) {
+            console.error("ContactsPage Error:", error)
+            // toast.error("Error al cargar contactos") // Optional: Suppress on first load if empty
+        } finally {
+            setIsLoading(false)
+        }
+    }
+
+    useEffect(() => {
+        fetchContacts()
+    }, [])
 
     // Filter contacts
     const filteredContacts = contacts.filter(contact => {
@@ -182,37 +127,103 @@ export default function ContactsPage() {
 
     // Handlers
     const handleCreateContact = () => {
+        setSelectedContact(null)
         setIsCreateModalOpen(true)
     }
 
     const handleEditContact = (contact: Contact) => {
         setSelectedContact(contact)
-        setIsEditModalOpen(true)
+        setIsCreateModalOpen(true) // Reusing the same modal/state variable logic
     }
 
-    const handleDeleteContact = (contactId: string) => {
-        // TODO: Implement delete with confirmation
-        console.log('Delete contact:', contactId)
+    const handleSaveContact = async (contactData: Partial<Contact>) => {
+        try {
+            const method = selectedContact ? 'PUT' : 'POST'
+            const body = {
+                ...contactData,
+                id: selectedContact?.id
+            }
+
+            const res = await fetch('/api/contacts', {
+                method,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            })
+
+            if (!res.ok) throw new Error('Failed to save contact')
+
+            toast.success(selectedContact ? "Contacto actualizado" : "Contacto creado")
+            setIsCreateModalOpen(false)
+            fetchContacts()
+        } catch (error) {
+            console.error(error)
+            toast.error("Error al guardar el contacto")
+            throw error
+        }
+    }
+
+    const handleDeleteContact = async (contactId: string) => {
+        if (!confirm("¿Está seguro de eliminar este contacto?")) return
+
+        try {
+            const res = await fetch(`/api/contacts?id=${contactId}`, { method: 'DELETE' })
+            if (!res.ok) throw new Error('Failed to delete')
+
+            toast.success("Contacto eliminado")
+            fetchContacts()
+        } catch (error) {
+            console.error(error)
+            toast.error("Error al eliminar contacto")
+        }
     }
 
     const handleSyncHubspot = () => {
         // TODO: Trigger HubSpot sync
         console.log('Syncing with HubSpot...')
+        toast.info("Iniciando sincronización con HubSpot...")
     }
 
     const handleCSVImport = async (contacts: any[]) => {
         try {
             console.log('Importing contacts:', contacts)
-            // TODO: Call API to save contacts
-            // await fetch('/api/contacts/bulk-import', {
-            //     method: 'POST',
-            //     headers: { 'Content-Type': 'application/json' },
-            //     body: JSON.stringify({ contacts })
-            // })
-            toast.success(`${contacts.length} contactos importados correctamente`)
+            const res = await fetch('/api/contacts/bulk-import', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ contacts })
+            })
+
+            if (!res.ok) {
+                throw new Error('Failed to import')
+            }
+
+            const result = await res.json()
+            toast.success(`${contacts.length} contactos procesados correctamente`)
+
+            fetchContacts()
         } catch (error) {
+            console.error(error)
             toast.error('Error al importar contactos')
             throw error
+        }
+    }
+
+    const handleDeleteAll = async () => {
+        if (!confirm('¿Estás SEGURO de que quieres eliminar TODOS tus contactos? Esta acción no se puede deshacer.')) {
+            return
+        }
+
+        try {
+            setIsLoading(true)
+            const res = await fetch('/api/contacts?all=true', { method: 'DELETE' })
+            if (!res.ok) throw new Error('Failed to delete')
+
+            toast.success('Todos los contactos han sido eliminados')
+            setContacts([])
+        } catch (error) {
+            console.error(error)
+            toast.error('Error al eliminar contactos')
+        } finally {
+            setIsLoading(false)
         }
     }
 
@@ -254,6 +265,12 @@ export default function ContactsPage() {
                     </p>
                 </div>
                 <div className="flex gap-3">
+                    {contacts.length > 0 && (
+                        <Button variant="outline" size="sm" onClick={handleDeleteAll} className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200">
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Eliminar Todo
+                        </Button>
+                    )}
                     <Button variant="outline" size="sm" onClick={() => setIsCSVUploadOpen(true)}>
                         <Upload className="h-4 w-4 mr-2" />
                         Importar CSV
@@ -354,7 +371,7 @@ export default function ContactsPage() {
                                 <option value="all">Todas las relaciones</option>
                                 <option value="strong">Fuertes (≥80)</option>
                                 <option value="medium">Medias (50-79)</option>
-                                <option value="weak">Débiles (\u003c50)</option>
+                                <option value="weak">Débiles (&lt;50)</option>
                             </select>
 
                             <select
@@ -394,77 +411,91 @@ export default function ContactsPage() {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {filteredContacts.map((contact) => (
-                                <TableRow key={contact.id} className="hover:bg-white/60 transition-colors">
-                                    <TableCell className="font-medium text-gray-900">
-                                        {contact.firstName} {contact.lastName}
-                                    </TableCell>
-                                    <TableCell className="text-gray-600">
-                                        <div className="flex items-center gap-2">
-                                            <Mail className="h-3 w-3 text-gray-400" />
-                                            {contact.email}
-                                        </div>
-                                    </TableCell>
-                                    <TableCell className="text-gray-600">
-                                        <div className="flex items-center gap-2">
-                                            <Building2 className="h-3 w-3 text-gray-400" />
-                                            {contact.company}
-                                        </div>
-                                    </TableCell>
-                                    <TableCell className="text-gray-600 text-sm">
-                                        {contact.role}
-                                    </TableCell>
-                                    <TableCell>
-                                        <Badge variant="outline" className={`${getSeniorityBadgeColor(contact.seniority)} font-normal`}>
-                                            {contact.seniority}
-                                        </Badge>
-                                    </TableCell>
-                                    <TableCell>
-                                        <div className="flex items-center gap-2">
-                                            <div className={`h-2 w-2 rounded-full ${getRelationshipColor(contact.relationshipStrength)}`} />
-                                            <span className="text-sm text-gray-600">
-                                                {getRelationshipLabel(contact.relationshipStrength)} ({contact.relationshipStrength})
-                                            </span>
-                                        </div>
-                                    </TableCell>
-                                    <TableCell>
-                                        <div className="flex items-center gap-2">
-                                            <div className="w-16 bg-gray-200 rounded-full h-1.5">
-                                                <div
-                                                    className="bg-[#FF5A00] h-1.5 rounded-full"
-                                                    style={{ width: `${contact.introPotential}%` }}
-                                                />
-                                            </div>
-                                            <span className="text-xs text-gray-600">{contact.introPotential}%</span>
-                                        </div>
-                                    </TableCell>
-                                    <TableCell>
-                                        {contact.hubspotSynced ? (
-                                            <CheckCircle2 className="h-4 w-4 text-green-600" />
-                                        ) : (
-                                            <XCircle className="h-4 w-4 text-gray-400" />
-                                        )}
-                                    </TableCell>
-                                    <TableCell className="text-right">
-                                        <div className="flex justify-end gap-2">
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                onClick={() => handleEditContact(contact)}
-                                            >
-                                                <Edit className="h-4 w-4" />
-                                            </Button>
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                onClick={() => handleDeleteContact(contact.id)}
-                                            >
-                                                <Trash2 className="h-4 w-4 text-red-600" />
-                                            </Button>
-                                        </div>
+                            {isLoading ? (
+                                <TableRow>
+                                    <TableCell colSpan={9} className="text-center h-24 text-gray-500">
+                                        Cargando contactos...
                                     </TableCell>
                                 </TableRow>
-                            ))}
+                            ) : filteredContacts.length === 0 ? (
+                                <TableRow>
+                                    <TableCell colSpan={9} className="text-center h-24 text-gray-500">
+                                        No se encontraron contactos.
+                                    </TableCell>
+                                </TableRow>
+                            ) : (
+                                filteredContacts.map((contact) => (
+                                    <TableRow key={contact.id} className="hover:bg-white/60 transition-colors">
+                                        <TableCell className="font-medium text-gray-900">
+                                            {contact.firstName} {contact.lastName}
+                                        </TableCell>
+                                        <TableCell className="text-gray-600">
+                                            <div className="flex items-center gap-2">
+                                                <Mail className="h-3 w-3 text-gray-400" />
+                                                {contact.email}
+                                            </div>
+                                        </TableCell>
+                                        <TableCell className="text-gray-600">
+                                            <div className="flex items-center gap-2">
+                                                <Building2 className="h-3 w-3 text-gray-400" />
+                                                {contact.company}
+                                            </div>
+                                        </TableCell>
+                                        <TableCell className="text-gray-600 text-sm">
+                                            {contact.role}
+                                        </TableCell>
+                                        <TableCell>
+                                            <Badge variant="outline" className={`${getSeniorityBadgeColor(contact.seniority)} font-normal`}>
+                                                {contact.seniority}
+                                            </Badge>
+                                        </TableCell>
+                                        <TableCell>
+                                            <div className="flex items-center gap-2">
+                                                <div className={`h-2 w-2 rounded-full ${getRelationshipColor(contact.relationshipStrength)}`} />
+                                                <span className="text-sm text-gray-600">
+                                                    {getRelationshipLabel(contact.relationshipStrength)} ({contact.relationshipStrength})
+                                                </span>
+                                            </div>
+                                        </TableCell>
+                                        <TableCell>
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-16 bg-gray-200 rounded-full h-1.5">
+                                                    <div
+                                                        className="bg-[#FF5A00] h-1.5 rounded-full"
+                                                        style={{ width: `${contact.introPotential}%` }}
+                                                    />
+                                                </div>
+                                                <span className="text-xs text-gray-600">{contact.introPotential}%</span>
+                                            </div>
+                                        </TableCell>
+                                        <TableCell>
+                                            {contact.hubspotSynced ? (
+                                                <CheckCircle2 className="h-4 w-4 text-green-600" />
+                                            ) : (
+                                                <XCircle className="h-4 w-4 text-gray-400" />
+                                            )}
+                                        </TableCell>
+                                        <TableCell className="text-right">
+                                            <div className="flex justify-end gap-2">
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    onClick={() => handleEditContact(contact)}
+                                                >
+                                                    <Edit className="h-4 w-4" />
+                                                </Button>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    onClick={() => handleDeleteContact(contact.id)}
+                                                >
+                                                    <Trash2 className="h-4 w-4 text-red-600" />
+                                                </Button>
+                                            </div>
+                                        </TableCell>
+                                    </TableRow>
+                                ))
+                            )}
                         </TableBody>
                     </Table>
                 </CardContent>
@@ -478,8 +509,13 @@ export default function ContactsPage() {
                 />
             )}
 
-            {/* TODO: Create Contact Modal */}
-            {/* TODO: Edit Contact Modal */}
+            {/* Create / Edit Contact Modal */}
+            <ContactModal
+                isOpen={isCreateModalOpen}
+                onClose={() => setIsCreateModalOpen(false)}
+                onSave={handleSaveContact}
+                contact={selectedContact}
+            />
         </div>
     )
 }

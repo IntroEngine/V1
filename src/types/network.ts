@@ -64,6 +64,10 @@ export interface UserConnection {
     last_interaction_date: string | null
     created_at: string
     updated_at: string
+    icp_match_score?: number
+    icp_match_reason?: string[]
+    icp_match_type?: 'ICP Match' | 'ICP Parcial' | 'No ICP'
+    icp_last_analyzed?: string
 }
 
 export interface KeyContact {
@@ -256,6 +260,7 @@ export interface Opportunity {
         name: string
         role: string
         relationshipStrength: number
+        linkedin?: string
     }
     aiScore: number
     reasoning: string

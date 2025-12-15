@@ -8,7 +8,7 @@ export function cn(...inputs: ClassValue[]) {
 
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
     variant?: 'primary' | 'secondary' | 'ghost' | 'outline' | 'danger';
-    size?: 'sm' | 'md' | 'lg';
+    size?: 'sm' | 'md' | 'lg' | 'icon';
 }
 
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
@@ -27,7 +27,8 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         const sizes = {
             sm: "h-8 px-3 text-xs",
             md: "h-10 py-2 px-4",
-            lg: "h-11 px-8 rounded-md"
+            lg: "h-11 px-8 rounded-md",
+            icon: "h-10 w-10 p-2"
         };
 
         return (

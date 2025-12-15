@@ -1,12 +1,19 @@
 import { NextResponse } from 'next/server';
 import { CompanyService } from '@/services/companyService';
+import { createClient } from '@/utils/supabase/server';
 
-// Mock Auth - replace with actual auth
-const getUserId = async (req: Request) => '00000000-0000-0000-0000-000000000001'
+const getUserId = async () => {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    return user?.id || null;
+}
 
 export async function GET(request: Request) {
     try {
-        const userId = await getUserId(request);
+        const userId = await getUserId();
+        if (!userId) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
         const companies = await CompanyService.getCompanies(userId);
         return NextResponse.json(companies);
     } catch (error: any) {
@@ -17,7 +24,11 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
     try {
-        const userId = await getUserId(request);
+        const userId = await getUserId();
+        if (!userId) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
         const body = await request.json();
 
         // Basic validation
